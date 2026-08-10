@@ -1,0 +1,551 @@
+// Schema Prisma - source de verite unique du schema DB (decision Doc2 : Prisma exclusif,
+// pas de migration SQL ecrite a la main). Seule exception assumee et documentee : les
+// colonnes "geometry(Point,4326)" (PostGIS) sont typees Unsupported() car Prisma ORM ne
+// modelise pas nativement les types geometriques. Les requetes spatiales (ST_DWithin, etc,
+// utilisees a partir du Sprint 2 pour le dispatch) passeront par $queryRaw avec des templates
+// parametres (Prisma.sql), jamais par du SQL concatene a la main.
+//
+// NOTE: Les index spatiaux GiST sur les colonnes geometry sont crees manuellement dans les
+// migrations SQL (CREATE INDEX ... USING GIST). Prisma ne peut pas les declarer dans le schema
+// car elles sont de type Unsupported(). En consequence, `prisma migrate dev` peut detecter un
+// "drift" et tenter de les supprimer. Utiliser `prisma migrate deploy` en CI/CD. Si `migrate dev`
+// supprime les index, les re-creer manuellement via `prisma db execute`.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+// ============================================================
+// AUTH / USERS (Sprint 1)
+// ============================================================
+
+enum UserRole {
+  client
+  driver
+  admin
+}
+
+model User {
+  id        String   @id @default(uuid())
+  phone     String   @unique
+  role      UserRole @default(client)
+  firstName String?  @map("first_name")
+  lastName  String?  @map("last_name")
+  email     String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  driver        Driver?
+  otpCodes      OtpCode[]
+  refreshTokens RefreshToken[]
+  tripsAsClient Trip[] @relation("ClientTrips")
+  deviceTokens  DeviceToken[]
+  chatMessages  ChatMessage[]
+  ratingsGiven  TripRating[]
+
+  @@map("users")
+}
+
+// Table dediee a la logique OTP (Sprint1 §8 des decisions actees) : le code est hashe
+// (jamais stocke en clair), avec expiration, compteur de tentatives et verrou temporaire.
+model OtpCode {
+  id          String    @id @default(uuid())
+  phone       String
+  codeHash    String    @map("code_hash")
+  userId      String?   @map("user_id")
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  attempts    Int       @default(0)
+  expiresAt   DateTime  @map("expires_at")
+  lockedUntil DateTime? @map("locked_until")
+  consumedAt  DateTime? @map("consumed_at")
+  // Identifiant du SMS cote fournisseur (sendtext.sn), pour tracabilite/support.
+  smsMessageId String?   @map("sms_message_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([phone])
+  @@map("otp_codes")
+}
+
+// Refresh tokens stockes hashes, avec rotation (replacedBy) et revocation possible.
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique @map("token_hash")
+  revokedAt  DateTime? @map("revoked_at")
+  replacedBy String?   @map("replaced_by")
+  expiresAt  DateTime  @map("expires_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ============================================================
+// DRIVERS / VEHICLES (Sprint 1)
+// ============================================================
+
+enum DriverStatus {
+  pending_validation
+  validated
+  suspended
+  rejected
+}
+
+model Driver {
+  id     String @id @default(uuid())
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status DriverStatus @default(pending_validation)
+
+  rating        Decimal @default(5.0) @db.Decimal(2, 1)
+  balance       Decimal @default(0) @db.Decimal(12, 2)
+  commissionDue Decimal @default(0) @map("commission_due") @db.Decimal(12, 2)
+
+  isOnline Boolean @default(false) @map("is_online")
+  // Position courante du chauffeur (PostGIS). Voir note en tete de fichier.
+  currentLocation Unsupported("geometry(Point, 4326)")? @map("current_location")
+  lastLocationAt  DateTime?                             @map("last_location_at")
+
+  photoUrl   String? @map("photo_url")
+  licenseUrl String? @map("license_url")
+  idCardUrl  String? @map("id_card_url")
+
+  validatedAt       DateTime? @map("validated_at")
+  suspendedAt       DateTime? @map("suspended_at")
+  suspensionReason  String?   @map("suspension_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vehicle         Vehicle?
+  trips           Trip[]
+  dispatchAttempts DispatchAttempt[]
+  capabilities    DriverCapability[]
+
+  @@map("drivers")
+}
+
+// ServiceType étendu pour la plateforme multi-services.
+// Ajouter une valeur = migration Prisma (simple ALTER TYPE ADD VALUE).
+// Chaque nouveau service nécessite également une entrée dans ServiceConfig.
+enum ServiceType {
+  ride
+  delivery
+  food
+  assistance
+  intercity
+}
+
+model VehicleType {
+  id          String      @id @default(uuid())
+  name        String
+  serviceType ServiceType @map("service_type")
+  capacity    Int
+
+  baseFare             Decimal @map("base_fare") @db.Decimal(10, 2)
+  pricePerKm           Decimal @map("price_per_km") @db.Decimal(10, 2)
+  pricePerMin          Decimal @map("price_per_min") @db.Decimal(10, 2)
+  commissionPercentage Decimal @map("commission_percentage") @db.Decimal(5, 2)
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  vehicles      Vehicle[]
+  trips         Trip[]
+  capabilities  VehicleTypeCapability[]
+
+  @@unique([name, serviceType])
+  @@map("vehicle_types")
+}
+
+model Vehicle {
+  id       String @id @default(uuid())
+  driverId String @unique @map("driver_id")
+  driver   Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  vehicleTypeId String      @map("vehicle_type_id")
+  vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id])
+
+  brand       String
+  model       String
+  year        Int
+  plateNumber String  @unique @map("plate_number")
+  energy      String
+  hasAC       Boolean @default(false) @map("has_ac")
+
+  registrationDocUrl String?  @map("registration_doc_url")
+  isValidated        Boolean  @default(false) @map("is_validated")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("vehicles")
+}
+
+// ============================================================
+// CAPABILITIES — Capacités chauffeurs et véhicules (Sprint 2.5)
+// ============================================================
+
+// Capacités réutilisables (sac isotherme, siège supplémentaire, trousse de secours, etc.).
+// Permet de filtrer les chauffeurs lors du dispatch selon les exigences du service.
+model Capability {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  category    String   @default("equipment") // "equipment", "certification", "vehicle_trait"
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  vehicleTypeCapabilities VehicleTypeCapability[]
+  driverCapabilities      DriverCapability[]
+  serviceRequirements     ServiceRequirement[]
+
+  @@map("capabilities")
+}
+
+// Capacités intrinsèques d'un type de véhicule (ex: sedan = 4_places, moto = 2_roues).
+model VehicleTypeCapability {
+  id            String      @id @default(uuid())
+  vehicleTypeId String      @map("vehicle_type_id")
+  vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id], onDelete: Cascade)
+  capabilityId  String      @map("capability_id")
+  capability    Capability  @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+
+  @@unique([vehicleTypeId, capabilityId])
+  @@map("vehicle_type_capabilities")
+}
+
+// Capacités additionnelles d'un chauffeur (ex: sac isotherme, certification premiers secours).
+model DriverCapability {
+  id           String      @id @default(uuid())
+  driverId     String      @map("driver_id")
+  driver       Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  capabilityId String      @map("capability_id")
+  capability   Capability  @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+
+  @@unique([driverId, capabilityId])
+  @@map("driver_capabilities")
+}
+
+// ============================================================
+// TRIPS / DISPATCH (Sprint 2)
+// ============================================================
+
+enum TripStatus {
+  pending
+  accepted
+  driver_arriving
+  in_progress
+  completed
+  cancelled_by_client
+  cancelled_by_driver
+  cancelled_auto
+}
+
+enum PaymentMethod {
+  cash
+  orange_money
+}
+
+enum DispatchStatus {
+  searching
+  driver_notified
+  driver_accepted
+  driver_declined
+  timed_out
+  exhausted
+}
+
+model Trip {
+  id            String      @id @default(uuid())
+  clientId      String      @map("client_id")
+  client        User        @relation("ClientTrips", fields: [clientId], references: [id])
+  driverId      String?     @map("driver_id")
+  driver        Driver?     @relation(fields: [driverId], references: [id])
+  vehicleTypeId String      @map("vehicle_type_id")
+  vehicleType   VehicleType @relation(fields: [vehicleTypeId], references: [id])
+
+  serviceType ServiceType @map("service_type")
+  status      TripStatus  @default(pending)
+
+  // Positions PostGIS (geometry(Point, 4326)). Voir note en tete de fichier.
+  pickupLocation  Unsupported("geometry(Point, 4326)") @map("pickup_location")
+  pickupAddress   String                                 @map("pickup_address")
+  dropoffLocation Unsupported("geometry(Point, 4326)") @map("dropoff_location")
+  dropoffAddress  String                                 @map("dropoff_address")
+
+  // Tarification
+  estimatedPrice Decimal?       @map("estimated_price") @db.Decimal(10, 2)
+  finalPrice     Decimal?       @map("final_price") @db.Decimal(10, 2)
+  paymentMethod  PaymentMethod  @default(cash) @map("payment_method")
+
+  // Distance / duree (fournies par DistanceProvider)
+  distanceMeters  Int? @map("distance_meters")
+  durationSeconds Int? @map("duration_seconds")
+
+  // Cycle de vie
+  acceptedAt      DateTime? @map("accepted_at")
+  driverArrivedAt DateTime? @map("driver_arrived_at")
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  cancelledAt     DateTime? @map("cancelled_at")
+  cancelReason    String?   @map("cancel_reason")
+
+  // Confirmation manuelle du paiement cash par le chauffeur (Sprint 3, §5 decisions actees).
+  paymentReceivedAt     DateTime? @map("payment_received_at")
+  paymentReceivedAmount Decimal?  @map("payment_received_amount") @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  dispatchAttempts DispatchAttempt[]
+  stops            TripStop[]
+  rideDetails      RideDetails?
+  deliveryDetails  DeliveryDetails?
+  chatMessages     ChatMessage[]
+  ratings          TripRating[]
+
+  @@index([clientId])
+  @@index([driverId])
+  @@index([status])
+  @@index([serviceType])
+  @@map("trips")
+}
+
+// ============================================================
+// TRIP STOPS — Étapes multi-arrêts (Sprint 2.5)
+// ============================================================
+
+enum StopType {
+  pickup
+  dropoff
+  waypoint
+}
+
+// Étape ordonnée d'un trip. Permet les trajets multi-arrêts :
+// - Livraison avec plusieurs points de dépose
+// - Interurbain avec étapes intermédiaires
+// - Course avec arrêts passagers
+// Le trip conserve pickup/dropoff principaux pour compatibilité ascendante ;
+// TripStop représente les arrêts intermédiaires et peut aussi référencer
+// les points principaux (sequence 1 = pickup, sequence N = dropoff).
+model TripStop {
+  id        String   @id @default(uuid())
+  tripId    String   @map("trip_id")
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  sequence  Int
+  stopType  StopType @map("stop_type")
+
+  // Position PostGIS (geometry(Point, 4326)). Voir note en tete de fichier.
+  location Unsupported("geometry(Point, 4326)") @map("location")
+  address  String
+  label    String? // Libellé lisible (ex: "Restaurant Le Baobab", "Client Mme Traoré")
+
+  arrivedAt   DateTime? @map("arrived_at")
+  completedAt DateTime? @map("completed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tripId])
+  @@unique([tripId, sequence])
+  @@map("trip_stops")
+}
+
+// ============================================================
+// SERVICE DETAILS — Détails spécifiques par type de service (Sprint 2.5)
+// ============================================================
+
+// Détails spécifiques aux courses de transport de personnes (ride, intercity).
+// 1:1 avec Trip. Créé uniquement si serviceType = ride | intercity.
+model RideDetails {
+  id             String   @id @default(uuid())
+  tripId         String   @unique @map("trip_id")
+  trip           Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  passengerCount Int      @default(1) @map("passenger_count")
+  notes          String?  // Instructions particulières du client
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("ride_details")
+}
+
+// Détails spécifiques aux livraisons de colis (delivery, food).
+// 1:1 avec Trip. Créé uniquement si serviceType = delivery | food.
+// Remplace les anciens champs recipientName/recipientPhone/parcelDescription sur Trip.
+model DeliveryDetails {
+  id               String   @id @default(uuid())
+  tripId           String   @unique @map("trip_id")
+  trip             Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  recipientName    String   @map("recipient_name")
+  recipientPhone   String   @map("recipient_phone")
+  parcelDescription String? @map("parcel_description")
+  parcelWeightKg   Decimal? @map("parcel_weight_kg") @db.Decimal(5, 2)
+  parcelDimensions String?  @map("parcel_dimensions") // "LxWxH cm"
+  isFragile        Boolean  @default(false) @map("is_fragile")
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("delivery_details")
+}
+
+// ============================================================
+// SERVICE CONFIG — Configuration pilotée par les données (Sprint 2.5)
+// ============================================================
+
+// Configuration d'un type de service, pilotée par les données plutôt que codée en dur.
+// Permet d'activer/désactiver un service, de configurer le dispatch, et de définir
+// les capacités requises sans modification de code.
+model ServiceConfig {
+  id                   String   @id @default(uuid())
+  serviceType          String   @unique @map("service_type") // "ride", "delivery", "food", etc.
+  isEnabled            Boolean  @default(true) @map("is_enabled")
+  displayName          String   @map("display_name") // "Course", "Livraison", "Repas"
+  description          String?
+
+  // Configuration du dispatch (remplace DispatchConstants codé en dur)
+  dispatchRadiusMeters Int      @default(5000) @map("dispatch_radius_meters")
+  maxDispatchAttempts  Int      @default(3) @map("max_dispatch_attempts")
+  lockTtlSeconds       Int      @default(30) @map("lock_ttl_seconds")
+  dispatchTimeoutMs    Int      @default(15000) @map("dispatch_timeout_ms")
+
+  // Configuration du pricing
+  surgeEnabled         Boolean  @default(false) @map("surge_enabled")
+  maxSurgeMultiplier   Decimal  @default(2.0) @map("max_surge_multiplier") @db.Decimal(3, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  requirements ServiceRequirement[]
+
+  @@map("service_configs")
+}
+
+// Exigence de capacité pour un service (ex: food → thermal_bag required).
+model ServiceRequirement {
+  id             String       @id @default(uuid())
+  serviceConfigId String      @map("service_config_id")
+  serviceConfig   ServiceConfig @relation(fields: [serviceConfigId], references: [id], onDelete: Cascade)
+  capabilityId   String       @map("capability_id")
+  capability     Capability   @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+  level          String       @default("required") // "required" ou "preferred"
+
+  @@unique([serviceConfigId, capabilityId])
+  @@map("service_requirements")
+}
+
+// Traçabilité des tentatives de dispatch par chauffeur pour une course.
+// Chaque tentative = un chauffeur notifié, avec son statut (accepté, refusé, timeout).
+model DispatchAttempt {
+  id        String         @id @default(uuid())
+  tripId    String         @map("trip_id")
+  trip      Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  driverId  String         @map("driver_id")
+  driver    Driver         @relation(fields: [driverId], references: [id])
+  status    DispatchStatus @default(searching)
+  notifiedAt  DateTime    @default(now()) @map("notified_at")
+  respondedAt DateTime?   @map("responded_at")
+
+  @@index([tripId])
+  @@index([driverId])
+  @@unique([tripId, driverId])
+  @@map("dispatch_attempts")
+}
+
+// ============================================================
+// CHAT — Messagerie in-app 1:1 client<->chauffeur (Sprint 3)
+// ============================================================
+
+enum SenderRole {
+  client
+  driver
+}
+
+// Message persiste, contextuel a une course active (trip_id). Le contenu texte
+// est optionnel si un fichier audio est joint (audioUrl, upload S3 prealable via
+// POST /chat/upload-audio). Transport temps reel via Socket.io (message:send / message:received).
+model ChatMessage {
+  id         String     @id @default(uuid())
+  tripId     String     @map("trip_id")
+  trip       Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  senderId   String     @map("sender_id")
+  sender     User       @relation(fields: [senderId], references: [id])
+  senderRole SenderRole @map("sender_role")
+  content    String?
+  audioUrl   String?    @map("audio_url")
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  @@index([tripId])
+  @@map("chat_messages")
+}
+
+// ============================================================
+// TRIP RATING — Evaluation post-course (Sprint 3)
+// ============================================================
+
+// Evaluation d'une partie par l'autre a la fin d'une course (V1: chauffeur note le client,
+// RatingScreen cote Telima Pro). Un seul rating par (tripId, raterId) - contrainte unique.
+model TripRating {
+  id        String     @id @default(uuid())
+  tripId    String     @map("trip_id")
+  trip      Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  raterId   String     @map("rater_id")
+  rater     User       @relation(fields: [raterId], references: [id])
+  raterRole SenderRole @map("rater_role")
+  rating    Int
+  tags      String[]   @default([])
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@unique([tripId, raterId])
+  @@index([tripId])
+  @@map("trip_ratings")
+}
+
+// ============================================================
+// DEVICE TOKENS — Notifications push FCM (Sprint 3)
+// ============================================================
+
+enum DevicePlatform {
+  android
+  ios
+  web
+}
+
+// Token d'appareil enregistre pour l'envoi de notifications push (FCM). Un utilisateur
+// peut avoir plusieurs appareils enregistres (unique sur le token lui-meme).
+model DeviceToken {
+  id        String         @id @default(uuid())
+  userId    String         @map("user_id")
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String         @unique
+  platform  DevicePlatform
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+model SwapStation {
+  id          String   @id @default(uuid())
+  name        String
+  address     String
+  lat         Float
+  lng         Float
+  kind        String   @default("swap") // "swap" or "charge"
+  available   Int      @default(0)
+  total       Int      @default(0)
+  models      String?  // e.g. "Niu, Gogoro, Yadea"
+  hours       String?  // e.g. "07:00 - 22:00"
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("swap_stations")
+}

@@ -1,0 +1,62 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://telima_user:${DB_PASSWORD:-telima_password}@postgres:5432/telima_dev?schema=public
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:3000/v1/health || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  postgres:
+    image: postgis/postgis:15-3.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: telima_dev
+      POSTGRES_USER: telima_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-telima_password}
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U telima_user -d telima_dev']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:
