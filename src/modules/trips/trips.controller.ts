@@ -12,6 +12,7 @@ import { CreateTripDto } from './dto/create-trip.dto';
 import { UpdateTripStatusDto } from './dto/update-trip-status.dto';
 import { CreateRatingDto } from './dto/create-rating.dto';
 import { PaymentReceivedDto } from './dto/payment-received.dto';
+import { DeclineTripDto } from './dto/decline-trip.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Idempotent } from '../../common/interceptors/idempotency.interceptor';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
@@ -85,6 +86,29 @@ export class TripsController {
     @Body() dto: UpdateTripStatusDto,
   ) {
     return this.tripsService.updateStatus(id, user.id, user.role, dto);
+  }
+
+  @Post(':id/accept')
+  @ApiOperation({ summary: 'Accepter une course (chauffeur) — équivalent REST de WS trip:accept' })
+  @ApiResponse({ status: 200, description: 'Course acceptée' })
+  @ApiResponse({ status: 400, description: 'Transition invalide' })
+  @ApiResponse({ status: 403, description: 'Course non assignée à ce chauffeur (dispatch)' })
+  @ApiResponse({ status: 404, description: 'Course introuvable' })
+  acceptTrip(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.tripsService.acceptTrip(id, user.id);
+  }
+
+  @Post(':id/decline')
+  @ApiOperation({ summary: 'Refuser une course (chauffeur) — équivalent REST de WS trip:decline' })
+  @ApiResponse({ status: 200, description: 'Course refusée, dispatch relancé' })
+  @ApiResponse({ status: 403, description: 'Course non assignée à ce chauffeur (dispatch)' })
+  @ApiResponse({ status: 404, description: 'Course introuvable' })
+  declineTrip(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: DeclineTripDto,
+  ) {
+    return this.tripsService.declineTrip(id, user.id, dto.reason);
   }
 
   @Post(':id/payment-received')

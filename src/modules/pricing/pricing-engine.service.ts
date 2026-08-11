@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PricingRule } from './rules/pricing-rule.interface';
 import { BaseFareRule } from './rules/base-fare.rule';
+import { SurgeMultiplierRule } from './rules/surge-multiplier.rule';
 import {
   PricingContext,
   PricingResult,
@@ -12,8 +13,12 @@ export class PricingEngineService {
   private readonly logger = new Logger(PricingEngineService.name);
   private readonly rules: PricingRule[] = [];
 
-  constructor(private readonly baseFareRule: BaseFareRule) {
+  constructor(
+    private readonly baseFareRule: BaseFareRule,
+    private readonly surgeMultiplierRule: SurgeMultiplierRule,
+  ) {
     this.registerRule(baseFareRule);
+    this.registerRule(surgeMultiplierRule);
   }
 
   registerRule(rule: PricingRule): void {

@@ -9,6 +9,7 @@ export const DomainEvents = {
   DriverAssigned: 'dispatch.driver_assigned',
   DispatchFailed: 'dispatch.failed',
   PaymentSucceeded: 'payment.succeeded',
+  CommissionPaid: 'commission.paid',
   DriverOnline: 'driver.online',
   DriverOffline: 'driver.offline',
   ChatMessageSent: 'chat.message_sent',

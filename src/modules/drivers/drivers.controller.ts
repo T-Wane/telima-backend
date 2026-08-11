@@ -21,6 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { DriverStatus, UserRole } from '@prisma/client';
 import { DriversService } from './drivers.service';
+import { CommissionsService } from '../commissions/commissions.service';
 import { RegisterDriverDto } from './dto/register-driver.dto';
 import { SuspendDriverDto } from './dto/suspend-driver.dto';
 import { UpdateOnlineStatusDto } from './dto/update-online-status.dto';
@@ -32,7 +33,10 @@ import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 @ApiBearerAuth()
 @Controller('drivers')
 export class DriversController {
-  constructor(private readonly driversService: DriversService) {}
+  constructor(
+    private readonly driversService: DriversService,
+    private readonly commissionsService: CommissionsService,
+  ) {}
 
   @Post('upload-document')
   @UseInterceptors(
@@ -88,6 +92,31 @@ export class DriversController {
   @ApiOperation({ summary: 'Mettre a jour le statut en ligne' })
   updateOnlineStatus(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateOnlineStatusDto) {
     return this.driversService.updateOnlineStatus(user.id, dto.isOnline);
+  }
+
+  // Sprint 5 : solde financier du chauffeur (balance, commissionDue, stats semaine/mois).
+  @Get('me/finances')
+  @ApiOperation({ summary: 'Solde financier du chauffeur (Sprint 5)' })
+  @ApiResponse({ status: 200, description: 'Balance, commission due, stats semaine/mois' })
+  @ApiResponse({ status: 404, description: 'Profil chauffeur introuvable' })
+  getMyFinances(@CurrentUser() user: AuthenticatedUser) {
+    return this.commissionsService.getDriverFinances(user.id);
+  }
+
+  // Sprint 5 : historique pagine des paiements de commission du chauffeur.
+  @Get('me/commissions')
+  @ApiOperation({ summary: 'Historique des paiements de commission (Sprint 5)' })
+  @ApiResponse({ status: 200, description: 'Liste paginee des paiements' })
+  listMyCommissions(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.commissionsService.listCommissionPayments(
+      user.id,
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+    );
   }
 
   @Roles(UserRole.admin)

@@ -24,6 +24,7 @@ import { DisconnectionHandler } from './handlers/disconnection.handler';
 import { WsEvents } from './events.constants';
 import { DomainEvents } from '../domain-events/domain-events.constants';
 import { ChatService } from '../chat/chat.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { SenderRole } from '@prisma/client';
 
 // Pas d'option namespace : le gateway sert le namespace racine, ce qui garantit que
@@ -49,6 +50,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     private readonly disconnectionHandler: DisconnectionHandler,
     private readonly eventEmitter: EventEmitter2,
     private readonly chatService: ChatService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async afterInit(server: Server) {
@@ -161,6 +163,31 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
       tripId: data.tripId,
       driverId,
       reason: data.reason,
+    });
+    return { acknowledged: true };
+  }
+
+  // Confirmation de reception du colis par le client (delivery:client_confirmed).
+  // Le client emet { tripId } ; le serveur verifie qu'il est bien le client de la course
+  // puis rediffuse dans la room du trip pour que le chauffeur soit notifie.
+  @SubscribeMessage(WsEvents.DeliveryClientConfirmed)
+  async handleDeliveryClientConfirmed(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { tripId: string },
+  ) {
+    const user = (client as any).user;
+    if (!user) {
+      return { acknowledged: false, error: 'Non authentifié' };
+    }
+    const trip = await this.prisma.trip.findUnique({
+      where: { id: data.tripId },
+      select: { clientId: true },
+    });
+    if (!trip || trip.clientId !== user.sub) {
+      return { acknowledged: false, error: 'Course introuvable ou non autorisée' };
+    }
+    this.broadcast.emitToTrip(data.tripId, WsEvents.DeliveryClientConfirmed, {
+      tripId: data.tripId,
     });
     return { acknowledged: true };
   }

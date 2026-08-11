@@ -95,6 +95,15 @@ export class DriversService {
     if (driver.status !== DriverStatus.validated) {
       throw new BadRequestException('Seul un chauffeur valide peut passer en ligne');
     }
+    // Blocage commission (Sprint 5) : un chauffeur dont la commission due depasse
+    // le seuil ne peut pas passer en ligne tant qu'il n'a pas paye.
+    const MAX_COMMISSION_DUE = 50000; // FCFA - seuil de blocage
+    if (isOnline && Number(driver.commissionDue) > MAX_COMMISSION_DUE) {
+      throw new BadRequestException(
+        `Commission impayee trop elevee (${Number(driver.commissionDue)} FCFA). ` +
+          `Veuillez payer vos commissions (max autorise : ${MAX_COMMISSION_DUE} FCFA) pour repasser en ligne.`,
+      );
+    }
     return this.prisma.driver.update({
       where: { id: driver.id },
       data: { isOnline },

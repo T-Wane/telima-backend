@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -26,6 +26,10 @@ export class ChargingStationsService {
   }
 
   async findOne(id: string) {
-    return this.prisma.swapStation.findUnique({ where: { id } });
+    const station = await this.prisma.swapStation.findUnique({ where: { id } });
+    if (!station) {
+      throw new NotFoundException('Station introuvable');
+    }
+    return station;
   }
 }

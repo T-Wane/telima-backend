@@ -4,7 +4,7 @@ import { ChargingStationsService } from './charging-stations.service';
 
 @ApiTags('Charging Stations')
 @ApiBearerAuth()
-@Controller('charging-stations')
+@Controller('battery-swap/stations')
 export class ChargingStationsController {
   constructor(private readonly service: ChargingStationsService) {}
 
@@ -27,7 +27,7 @@ export class ChargingStationsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Détails d\'une station' })
+  @ApiOperation({ summary: "Détails d'une station" })
   @ApiResponse({ status: 200, description: 'Détails de la station' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.findOne(id);

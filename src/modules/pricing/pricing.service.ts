@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ServiceType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PricingEngineService } from './pricing-engine.service';
+import { DynamicPricingService } from './dynamic-pricing.service';
 import {
   DISTANCE_PROVIDER,
   DistanceProvider,
@@ -26,6 +27,7 @@ export class PricingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly engine: PricingEngineService,
+    private readonly dynamicPricing: DynamicPricingService,
     @Inject(DISTANCE_PROVIDER) private readonly distanceProvider: DistanceProvider,
   ) {}
 
@@ -64,6 +66,9 @@ export class PricingService {
       dropoffLng: input.dropoff.lng,
       requestedAt: new Date(),
     };
+
+    // Surge dynamique (Sprint 5) : zones actives + regles de tarification DB.
+    context.surgeMultiplier = await this.dynamicPricing.getSurgeMultiplier(context);
 
     const result = this.engine.calculate(context);
     return {

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Param,
@@ -17,7 +18,9 @@ import {
   ApiConsumes,
   ApiBody,
 } from '@nestjs/swagger';
+import { SenderRole } from '@prisma/client';
 import { ChatService } from './chat.service';
+import { CreateMessageDto } from './dto/create-message.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 
@@ -36,6 +39,22 @@ export class ChatController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.chatService.getMessages(tripId, user.id);
+  }
+
+  // Fallback REST de WS message:send (API_CONTRACT.md : REST pour fiabilite, WS pour
+  // temps reel). Meme logique de persistance + broadcast que le handler WS.
+  @Post('trips/:tripId/messages')
+  @ApiOperation({ summary: 'Envoyer un message (fallback REST de WS message:send)' })
+  @ApiResponse({ status: 201, description: 'Message créé et diffusé via WS' })
+  @ApiResponse({ status: 400, description: 'content ou audioUrl requis' })
+  @ApiResponse({ status: 403, description: 'Ne participe pas à cette course' })
+  sendMessage(
+    @Param('tripId', ParseUUIDPipe) tripId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateMessageDto,
+  ) {
+    const senderRole = user.role === 'driver' ? SenderRole.driver : SenderRole.client;
+    return this.chatService.createMessage(tripId, user.id, senderRole, dto.content, dto.audioUrl);
   }
 
   @Post('chat/upload-audio')

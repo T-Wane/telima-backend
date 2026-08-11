@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
@@ -22,7 +23,7 @@ export class FcmPushProvider implements PushProvider, OnModuleInit {
       return;
     }
     try {
-      const serviceAccount = require(serviceAccountPath);
+      const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
       this.app = admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
       });

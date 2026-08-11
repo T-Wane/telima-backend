@@ -14,6 +14,9 @@ export interface PricingContext {
   dropoffLat: number;
   dropoffLng: number;
   requestedAt: Date;
+  // Multiplicateur de surge dynamique (zones + regles DB, Sprint 5).
+  // Calcule par DynamicPricingService, applique par SurgeMultiplierRule.
+  surgeMultiplier?: number;
 }
 
 export interface PricingResult {

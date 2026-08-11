@@ -13,6 +13,10 @@ describe('TripsService - Sprint 3 (rating & payment-received)', () => {
     createRating: jest.Mock;
   };
   let eventEmitter: { emit: jest.Mock };
+  let dispatchService: {
+    handleDriverAccept: jest.Mock;
+    handleDriverDeclineAndRetry: jest.Mock;
+  };
 
   const tripId = 'trip-1';
   const clientId = 'client-1';
@@ -32,6 +36,10 @@ describe('TripsService - Sprint 3 (rating & payment-received)', () => {
       createRating: jest.fn(async (data: Record<string, unknown>) => ({ id: 'rating-1', ...data })),
     };
     eventEmitter = { emit: jest.fn() };
+    dispatchService = {
+      handleDriverAccept: jest.fn(),
+      handleDriverDeclineAndRetry: jest.fn(),
+    };
 
     // findById est utilisé par getTrip() en interne.
     tripRepo.findById.mockImplementation(async () => ({
@@ -44,10 +52,36 @@ describe('TripsService - Sprint 3 (rating & payment-received)', () => {
     service = new TripsService(
       tripRepo as unknown as never,
       {} as never, // PricingService non utilisé par ces méthodes
-      {} as never, // DispatchService non utilisé par ces méthodes
+      dispatchService as unknown as never,
       {} as never, // BroadcastService non utilisé par ces méthodes
       eventEmitter as unknown as never,
     );
+  });
+
+  describe('declineTrip (REST)', () => {
+    it('rejette si le profil chauffeur est introuvable', async () => {
+      tripRepo.findDriverByUserId.mockResolvedValue(null);
+      await expect(service.declineTrip(tripId, driverUserId)).rejects.toThrow(ForbiddenException);
+    });
+
+    it("rejette si la course n'est pas assignée à ce chauffeur (pas de tentative active)", async () => {
+      tripRepo.findDriverByUserId.mockResolvedValue({ id: driverId });
+      (tripRepo as Record<string, jest.Mock>).hasActiveDispatchAttempt = jest
+        .fn()
+        .mockResolvedValue(false);
+      await expect(service.declineTrip(tripId, driverUserId)).rejects.toThrow(ForbiddenException);
+      expect(dispatchService.handleDriverDeclineAndRetry).not.toHaveBeenCalled();
+    });
+
+    it('libère le verrou et relance le dispatch pour un chauffeur notifié', async () => {
+      tripRepo.findDriverByUserId.mockResolvedValue({ id: driverId });
+      (tripRepo as Record<string, jest.Mock>).hasActiveDispatchAttempt = jest
+        .fn()
+        .mockResolvedValue(true);
+      const result = await service.declineTrip(tripId, driverUserId, 'trop loin');
+      expect(dispatchService.handleDriverDeclineAndRetry).toHaveBeenCalledWith(tripId, driverId);
+      expect(result).toEqual({ tripId, declined: true });
+    });
   });
 
   describe('confirmPaymentReceived', () => {

@@ -24,6 +24,9 @@ import { DevicesModule } from './modules/devices/devices.module';
 import { PushProviderModule } from './modules/providers/push/push-provider.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ChargingStationsModule } from './modules/charging-stations/charging-stations.module';
+import { TrackingModule } from './modules/tracking/tracking.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
@@ -66,6 +69,9 @@ import { IdempotencyInterceptor } from './common/interceptors/idempotency.interc
     PushProviderModule,
     NotificationsModule,
     ChargingStationsModule,
+    TrackingModule,
+    PaymentsModule,
+    AdminModule,
     AuthModule,
     UsersModule,
     DriversModule,

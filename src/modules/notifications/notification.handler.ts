@@ -71,10 +71,7 @@ export class NotificationHandler {
     });
     if (!trip) return;
 
-    const targetUserId =
-      event.cancelledBy === trip.clientId
-        ? trip.driver?.userId
-        : trip.clientId;
+    const targetUserId = event.cancelledBy === trip.clientId ? trip.driver?.userId : trip.clientId;
 
     if (targetUserId) {
       await this.sendToUser(targetUserId, {
@@ -83,6 +80,24 @@ export class NotificationHandler {
         data: { tripId: event.tripId, type: 'trip_cancelled' },
       });
     }
+  }
+
+  @OnEvent(DomainEvents.CommissionPaid)
+  async handleCommissionPaid(event: {
+    paymentId: string;
+    driverId: string;
+    amount: number;
+  }): Promise<void> {
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: event.driverId },
+      select: { userId: true },
+    });
+    if (!driver) return;
+    await this.sendToUser(driver.userId, {
+      title: 'Paiement confirmé',
+      body: `Votre paiement de commission de ${event.amount} FCFA a été confirmé.`,
+      data: { type: 'payment_confirmed', amount: String(event.amount) },
+    });
   }
 
   @OnEvent(DomainEvents.ChatMessageSent)
@@ -94,10 +109,7 @@ export class NotificationHandler {
     });
     if (!trip) return;
 
-    const targetUserId =
-      event.senderRole === 'client'
-        ? trip.driver?.userId
-        : trip.clientId;
+    const targetUserId = event.senderRole === 'client' ? trip.driver?.userId : trip.clientId;
 
     if (targetUserId) {
       await this.sendToUser(targetUserId, {
@@ -110,7 +122,12 @@ export class NotificationHandler {
 
   private async sendToUser(
     userId: string,
-    notification: { title: string; body: string; data?: Record<string, string>; priority?: 'high' | 'normal' },
+    notification: {
+      title: string;
+      body: string;
+      data?: Record<string, string>;
+      priority?: 'high' | 'normal';
+    },
   ): Promise<void> {
     try {
       const tokens = await this.prisma.deviceToken.findMany({

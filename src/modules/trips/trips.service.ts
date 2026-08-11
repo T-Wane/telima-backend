@@ -149,14 +149,9 @@ export class TripsService {
         // sans ce garde-fou, n'importe quel chauffeur pourrait s'auto-assigner
         // n'importe quelle course pending via REST ou WS (handleDriverAccept ne fait
         // que logger un avertissement sans bloquer la mise a jour du statut).
-        const hasActiveAttempt = await this.tripRepo.hasActiveDispatchAttempt(
-          tripId,
-          driver.id,
-        );
+        const hasActiveAttempt = await this.tripRepo.hasActiveDispatchAttempt(tripId, driver.id);
         if (!hasActiveAttempt) {
-          throw new ForbiddenException(
-            'Cette course ne vous est pas assignee (dispatch)',
-          );
+          throw new ForbiddenException('Cette course ne vous est pas assignee (dispatch)');
         }
         updateData.driverId = driver.id;
         updateData.acceptedAt = new Date();
@@ -253,14 +248,10 @@ export class TripsService {
         driverPhoto: trip.driver?.photoUrl,
         rating: trip.driver?.rating,
         vehiclePlate: vehicle?.plateNumber,
-        vehicleModel: vehicle
-          ? `${vehicle.brand} ${vehicle.model}`
-          : undefined,
+        vehicleModel: vehicle ? `${vehicle.brand} ${vehicle.model}` : undefined,
         vehicleType: vehicle?.vehicleType?.name,
         etaMinutes,
-        estimatedPrice: trip.estimatedPrice
-          ? Number(trip.estimatedPrice)
-          : undefined,
+        estimatedPrice: trip.estimatedPrice ? Number(trip.estimatedPrice) : undefined,
       });
     }
 
@@ -315,10 +306,43 @@ export class TripsService {
         dropoffAddress: trip.dropoffAddress,
         estimatedPrice: trip.estimatedPrice ? Number(trip.estimatedPrice) : undefined,
         driverName:
-          `${trip.driver?.user?.firstName ?? ''} ${trip.driver?.user?.lastName ?? ''}`.trim() || undefined,
+          `${trip.driver?.user?.firstName ?? ''} ${trip.driver?.user?.lastName ?? ''}`.trim() ||
+          undefined,
         driverPhone: trip.driver?.user?.phone,
       });
     }
+  }
+
+  /**
+   * Acceptation REST (Sprint 3) : equivalent de WS trip:accept, recommande par
+   * API_CONTRACT.md §7 (REST pour fiabilite, WS pour notification temps reel).
+   * Delegue a updateStatus pour appliquer exactement les memes regles (transition,
+   * verification de tentative de dispatch active, verrous).
+   */
+  async acceptTrip(tripId: string, userId: string) {
+    return this.updateStatus(tripId, userId, 'driver', { status: TripStatus.accepted });
+  }
+
+  /**
+   * Refus REST (Sprint 3) : equivalent de WS trip:decline. Verifie que le chauffeur
+   * a bien ete notifie par le dispatch (meme garde-fou que l'acceptation), puis libere
+   * le verrou et relance le dispatch sans attendre le timeout BullMQ.
+   */
+  async declineTrip(tripId: string, userId: string, reason?: string) {
+    const trip = await this.getTrip(tripId);
+    const driver = await this.tripRepo.findDriverByUserId(userId);
+    if (!driver) throw new ForbiddenException('Profil chauffeur introuvable');
+
+    const hasActiveAttempt = await this.tripRepo.hasActiveDispatchAttempt(tripId, driver.id);
+    if (!hasActiveAttempt) {
+      throw new ForbiddenException('Cette course ne vous est pas assignee (dispatch)');
+    }
+
+    await this.dispatchService.handleDriverDeclineAndRetry(tripId, driver.id);
+    this.logger.log(
+      `Trip ${tripId} declined by driver ${driver.id} via REST${reason ? `: ${reason}` : ''}`,
+    );
+    return { tripId: trip.id, declined: true };
   }
 
   /**
