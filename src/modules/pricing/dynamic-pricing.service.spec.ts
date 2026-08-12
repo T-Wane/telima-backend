@@ -78,7 +78,7 @@ describe('DynamicPricingService - Sprint 5 (zones & regles)', () => {
     expect(await service.getSurgeMultiplier(baseContext)).toBe(1.2);
   });
 
-  it("ignore la regle time_range hors plage horaire", async () => {
+  it('ignore la regle time_range hors plage horaire', async () => {
     prisma.pricingRule.findMany.mockResolvedValue([
       {
         serviceType: null,

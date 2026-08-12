@@ -21,8 +21,8 @@ export class OrangeMoneyProvider implements PaymentProvider {
   private get isConfigured(): boolean {
     return Boolean(
       this.config.get<string>('ORANGE_MONEY_CLIENT_ID') &&
-        this.config.get<string>('ORANGE_MONEY_CLIENT_SECRET') &&
-        this.config.get<string>('ORANGE_MONEY_MERCHANT_KEY'),
+      this.config.get<string>('ORANGE_MONEY_CLIENT_SECRET') &&
+      this.config.get<string>('ORANGE_MONEY_MERCHANT_KEY'),
     );
   }
 

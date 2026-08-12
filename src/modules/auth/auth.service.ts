@@ -14,6 +14,7 @@ import { SMS_PROVIDER, SmsProvider } from '../sms/sms-provider.interface';
 import { normalizePhone } from './utils/phone.util';
 import { generateOtpCode, hashToken } from './utils/crypto.util';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { UserRole } from '@prisma/client';
 
 export interface TokenPair {
   accessToken: string;
@@ -167,6 +168,36 @@ export class AuthService {
       user: {
         id: user.id,
         phone: user.phone,
+        role: user.role,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+    };
+  }
+
+  // Login admin pour le dashboard : email + password bcrypt (pas d'OTP, decision actee).
+  // Reserve au role admin ; un compte client/chauffeur ne peut pas se connecter ici.
+  async adminLogin(email: string, password: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { email, role: UserRole.admin },
+    });
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException('Identifiants invalides');
+    }
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      throw new UnauthorizedException('Identifiants invalides');
+    }
+    if (!user.isActive) {
+      throw new ForbiddenException('Ce compte a ete desactive');
+    }
+    const tokens = await this.issueTokenPair(user.id, user.phone, user.role);
+    return {
+      ...tokens,
+      user: {
+        id: user.id,
+        phone: user.phone,
+        email: user.email,
         role: user.role,
         firstName: user.firstName,
         lastName: user.lastName,

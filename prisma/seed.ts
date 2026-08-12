@@ -1,4 +1,5 @@
 import { PrismaClient, ServiceType, UserRole } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -60,8 +61,9 @@ async function main() {
     });
   }
 
-  // --- Admin user ---
+  // --- Admin user (login dashboard email/password) ---
   const adminPhone = '+22300000000';
+  const adminPasswordHash = await bcrypt.hash('AdminTelima2026!', 10);
   await prisma.user.upsert({
     where: { phone: adminPhone },
     update: {},
@@ -70,6 +72,8 @@ async function main() {
       role: UserRole.admin,
       firstName: 'Admin',
       lastName: 'Telima',
+      email: 'admin@telima.ml',
+      passwordHash: adminPasswordHash,
     },
   });
 

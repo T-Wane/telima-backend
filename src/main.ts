@@ -16,7 +16,12 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
 
   const storageProvider = configService.get<string>('STORAGE_PROVIDER', 'local');
   if (storageProvider === 'local') {
@@ -33,10 +38,21 @@ async function bootstrap() {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+  // En dev, on ajoute toujours les origines locales du dashboard
+  const devOrigins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5174',
+    'http://localhost:5175',
+    'http://127.0.0.1:5175',
+  ];
+  const allOrigins = [...new Set([...corsOrigins, ...devOrigins])];
+
   const isProd = configService.get<string>('NODE_ENV') === 'production';
 
   app.enableCors({
-    origin: corsOrigins.length > 0 ? corsOrigins : !isProd,
+    origin: allOrigins.length > 0 ? allOrigins : !isProd,
     credentials: true,
   });
 

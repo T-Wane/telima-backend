@@ -26,20 +26,16 @@ describe('PaymentsService - Sprint 5 (commission)', () => {
         update: jest.fn(),
       },
       commissionPayment: {
-        create: jest
-          .fn()
-          .mockImplementation(async (args: { data: Record<string, unknown> }) => ({
-            id: 'payment-1',
-            ...args.data,
-          })),
-        update: jest
-          .fn()
-          .mockImplementation(async (args: { data: Record<string, unknown> }) => ({
-            id: 'payment-1',
-            driverId,
-            amount: 5000,
-            ...args.data,
-          })),
+        create: jest.fn().mockImplementation(async (args: { data: Record<string, unknown> }) => ({
+          id: 'payment-1',
+          ...args.data,
+        })),
+        update: jest.fn().mockImplementation(async (args: { data: Record<string, unknown> }) => ({
+          id: 'payment-1',
+          driverId,
+          amount: 5000,
+          ...args.data,
+        })),
         findUnique: jest.fn(),
       },
     };

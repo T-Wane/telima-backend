@@ -39,6 +39,9 @@ model User {
   firstName String?  @map("first_name")
   lastName  String?  @map("last_name")
   email     String?
+  // Hash bcrypt du mot de passe, uniquement pour les comptes admin
+  // (login dashboard email/password, pas d'OTP). Null pour clients/chauffeurs.
+  passwordHash String? @map("password_hash")
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -628,4 +631,20 @@ model PricingRule {
 
   @@index([serviceType, isActive])
   @@map("pricing_rules")
+}
+
+// Parametres generaux de la plateforme (dashboard admin).
+// Table a ligne unique (singleton) : l'ID est toujours "default".
+model PlatformSettings {
+  id                  String   @id @default("default")
+  platformName        String   @default("Telima") @map("platform_name")
+  contactEmail        String?  @map("contact_email")
+  supportPhone        String?  @map("support_phone")
+  currency            String   @default("FCFA")
+  freeCancellationMin Int      @default(5) @map("free_cancellation_min")
+  driverSearchRadiusKm Float   @default(3) @map("driver_search_radius_km")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
 }

@@ -1,10 +1,7 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
-import {
-  PAYMENT_PROVIDER,
-  PaymentProvider,
-} from './providers/payment-provider.interface';
+import { PAYMENT_PROVIDER, PaymentProvider } from './providers/payment-provider.interface';
 import { PayCommissionDto } from './dto/pay-commission.dto';
 import { CommissionsService } from '../commissions/commissions.service';
 import { BroadcastService } from '../events/services/broadcast.service';
@@ -49,7 +46,12 @@ export class PaymentsService {
       where: { id: payment.id },
       data: {
         transactionRef: result.transactionRef,
-        status: result.status === 'succeeded' ? 'succeeded' : result.status === 'failed' ? 'failed' : 'pending',
+        status:
+          result.status === 'succeeded'
+            ? 'succeeded'
+            : result.status === 'failed'
+              ? 'failed'
+              : 'pending',
         paidAt: result.status === 'succeeded' ? new Date() : null,
       },
     });

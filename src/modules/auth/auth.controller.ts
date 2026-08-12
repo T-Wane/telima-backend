@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { AdminLoginDto } from './dto/admin-login.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from './interfaces/jwt-payload.interface';
@@ -47,6 +48,17 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Refresh token invalide' })
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto.refreshToken);
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60000, limit: 5 } })
+  @Post('admin/login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login admin (email + password) pour le dashboard' })
+  @ApiResponse({ status: 200, description: 'Tokens JWT retournes' })
+  @ApiResponse({ status: 401, description: 'Identifiants invalides' })
+  adminLogin(@Body() dto: AdminLoginDto) {
+    return this.authService.adminLogin(dto.email, dto.password);
   }
 
   @Post('logout')

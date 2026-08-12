@@ -1,4 +1,13 @@
-import { IsBoolean, IsInt, IsNumber, IsObject, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ServiceType } from '@prisma/client';
 
@@ -22,7 +31,10 @@ export class CreatePricingRuleDto {
   @IsString()
   zoneId?: string;
 
-  @ApiProperty({ description: 'Condition JSON: {"type":"zone","zoneId":"..."} ou {"type":"time_range","from":"18:00","to":"22:00"}' })
+  @ApiProperty({
+    description:
+      'Condition JSON: {"type":"zone","zoneId":"..."} ou {"type":"time_range","from":"18:00","to":"22:00"}',
+  })
   @IsObject()
   condition: Record<string, unknown>;
 
