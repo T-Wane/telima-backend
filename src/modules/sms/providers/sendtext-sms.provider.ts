@@ -35,7 +35,7 @@ export class SendtextSmsProvider implements SmsProvider {
     this.apiUrl = this.config.get<string>('SENDTEXT_API_URL', 'https://api.sendtext.sn/v1/sms/ml');
     this.apiKey = this.config.get<string>('SENDTEXT_API_KEY', '');
     this.apiSecret = this.config.get<string>('SENDTEXT_API_SECRET', '');
-    this.senderName = this.config.get<string>('SENDTEXT_SENDER_NAME', 'Telima');
+    this.senderName = this.config.get<string>('SENDTEXT_SENDER_NAME', 'JulakAI');
 
     if (!this.apiKey || !this.apiSecret) {
       throw new Error(
@@ -48,7 +48,7 @@ export class SendtextSmsProvider implements SmsProvider {
   async sendOtp(phone: string, code: string): Promise<SmsSendResult> {
     // sendtext.sn attend le format national+indicatif SANS le '+' : 223XXXXXXXX.
     const sendtextPhone = phone.replace(/^\+/, '');
-    const text = `Telima : votre code de verification est ${code}. Il expire dans 5 minutes. Ne le partagez avec personne.`;
+    const text = `JulakAI : votre code de verification est ${code}. Il expire dans 5 minutes. Ne le partagez avec personne.`;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), SENDTEXT_TIMEOUT_MS);

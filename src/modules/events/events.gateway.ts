@@ -90,6 +90,25 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     return { event: WsEvents.DriverOnline, data: { driverId: data.driverId } };
   }
 
+  @SubscribeMessage(WsEvents.DriverOnline)
+  async handleDriverOnline(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { driverId: string },
+  ) {
+    this.rooms.joinDriverRoom(client, data.driverId);
+    await this.presence.setOnline(data.driverId);
+    return { event: WsEvents.DriverOnline, data: { driverId: data.driverId } };
+  }
+
+  @SubscribeMessage(WsEvents.DriverOffline)
+  async handleDriverOffline(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { driverId: string },
+  ) {
+    await this.presence.setOffline(data.driverId);
+    return { event: WsEvents.DriverOffline, data: { driverId: data.driverId } };
+  }
+
   @SubscribeMessage(WsEvents.DriverRejoinRoom)
   async handleDriverRejoinRoom(
     @ConnectedSocket() client: Socket,

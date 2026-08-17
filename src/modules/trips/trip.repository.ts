@@ -146,10 +146,12 @@ export class TripRepository {
     return attempt !== null;
   }
 
-  async findManyByClient(clientId: string, skip: number, take: number) {
+  async findManyByClient(clientId: string, skip: number, take: number, status?: string) {
+    const where: any = { clientId };
+    if (status) where.status = status;
     const [data, total] = await Promise.all([
       this.prisma.trip.findMany({
-        where: { clientId },
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
         take,
@@ -164,15 +166,17 @@ export class TripRepository {
           },
         },
       }),
-      this.prisma.trip.count({ where: { clientId } }),
+      this.prisma.trip.count({ where }),
     ]);
     return { data, total };
   }
 
-  async findManyByDriver(driverId: string, skip: number, take: number) {
+  async findManyByDriver(driverId: string, skip: number, take: number, status?: string) {
+    const where: any = { driverId };
+    if (status) where.status = status;
     const [data, total] = await Promise.all([
       this.prisma.trip.findMany({
-        where: { driverId },
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
         take,
@@ -183,7 +187,7 @@ export class TripRepository {
           },
         },
       }),
-      this.prisma.trip.count({ where: { driverId } }),
+      this.prisma.trip.count({ where }),
     ]);
     return { data, total };
   }

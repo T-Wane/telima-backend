@@ -118,16 +118,16 @@ export class TripsService {
     return trip;
   }
 
-  async listMyTrips(userId: string, role: string, page = 1, limit = 20) {
+  async listMyTrips(userId: string, role: string, page = 1, limit = 20, status?: string) {
     const skip = (page - 1) * limit;
 
     if (role === 'driver') {
       const driver = await this.tripRepo.findDriverByUserId(userId);
       if (!driver) return { data: [], total: 0, page, limit };
-      return { ...(await this.tripRepo.findManyByDriver(driver.id, skip, limit)), page, limit };
+      return { ...(await this.tripRepo.findManyByDriver(driver.id, skip, limit, status)), page, limit };
     }
 
-    return { ...(await this.tripRepo.findManyByClient(userId, skip, limit)), page, limit };
+    return { ...(await this.tripRepo.findManyByClient(userId, skip, limit, status)), page, limit };
   }
 
   async updateStatus(tripId: string, userId: string, role: string, dto: UpdateTripStatusDto) {

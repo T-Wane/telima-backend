@@ -15,8 +15,8 @@ import { SendtextSmsProvider } from './providers/sendtext-sms.provider';
     {
       provide: SMS_PROVIDER,
       useFactory: (config: ConfigService, mock: MockSmsProvider, sendtext: SendtextSmsProvider) => {
-        const provider = config.get<string>('SMS_PROVIDER', 'mock');
-        return provider === 'sendtext' ? sendtext : mock;
+        const provider = config.get<string>('SMS_PROVIDER', 'sendtext');
+        return provider === 'mock' ? mock : sendtext;
       },
       inject: [ConfigService, MockSmsProvider, SendtextSmsProvider],
     },

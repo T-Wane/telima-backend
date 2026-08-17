@@ -154,6 +154,8 @@ export class AuthService {
     if (!user) {
       user = await this.prisma.user.create({ data: { phone } });
       isNewUser = true;
+    } else if (!user.firstName || !user.lastName) {
+      isNewUser = true;
     }
 
     if (!user.isActive) {

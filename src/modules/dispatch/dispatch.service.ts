@@ -72,6 +72,20 @@ export class DispatchService {
       ? `${trip.client.firstName ?? ''} ${trip.client.lastName ?? ''}`.trim()
       : '';
 
+    // Récupération des coordonnées dropoff depuis PostGIS pour l'affichage carte chauffeur
+    let dropoffLat: number | undefined;
+    let dropoffLng: number | undefined;
+    try {
+      const dropoffData = await this.prisma.$queryRaw<{ lat: number; lng: number }[]>`
+        SELECT
+          ST_Y(dropoff_location)::float AS lat,
+          ST_X(dropoff_location)::float AS lng
+        FROM trips WHERE id = ${tripId}
+      `;
+      dropoffLat = dropoffData[0]?.lat;
+      dropoffLng = dropoffData[0]?.lng;
+    } catch (_) {}
+
     const notified: NearbyDriver[] = [];
     for (const driver of candidates.slice(0, config.maxDispatchAttempts)) {
       const lockKey = DispatchLockKey(driver.driverId);
@@ -94,6 +108,9 @@ export class DispatchService {
         tripId,
         serviceType,
         pickup: { lat: pickup.lat, lng: pickup.lng },
+        dropoff: dropoffLat != null && dropoffLng != null
+          ? { lat: dropoffLat, lng: dropoffLng }
+          : undefined,
         pickupAddress: trip?.pickupAddress,
         dropoffAddress: trip?.dropoffAddress,
         estimatedPrice,

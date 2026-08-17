@@ -74,7 +74,7 @@ class EnvironmentVariables {
   @IsOptional()
   OTP_EXPOSE_IN_RESPONSE?: boolean;
 
-  @IsIn(['mock', 'sendtext'])
+  @IsIn(['sendtext', 'mock'])
   @IsOptional()
   SMS_PROVIDER?: string;
 
@@ -83,12 +83,10 @@ class EnvironmentVariables {
   SENDTEXT_API_URL?: string;
 
   @IsString()
-  @IsOptional()
-  SENDTEXT_API_KEY?: string;
+  SENDTEXT_API_KEY!: string;
 
   @IsString()
-  @IsOptional()
-  SENDTEXT_API_SECRET?: string;
+  SENDTEXT_API_SECRET!: string;
 
   @IsString()
   @IsOptional()

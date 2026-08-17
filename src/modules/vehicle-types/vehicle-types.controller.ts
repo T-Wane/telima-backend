@@ -5,6 +5,7 @@ import { VehicleTypesService } from './vehicle-types.service';
 import { CreateVehicleTypeDto } from './dto/create-vehicle-type.dto';
 import { UpdateVehicleTypeDto } from './dto/update-vehicle-type.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 
 @ApiTags('Vehicle Types')
 @ApiBearerAuth()
@@ -12,12 +13,14 @@ import { Roles } from '../../common/decorators/roles.decorator';
 export class VehicleTypesController {
   constructor(private readonly vehicleTypesService: VehicleTypesService) {}
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Lister les types de vehicules actifs' })
   findAll(@Query('includeInactive') includeInactive?: string) {
     return this.vehicleTypesService.findAll(includeInactive === 'true');
   }
 
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Recuperer un type de vehicule par ID' })
   findOne(@Param('id') id: string) {

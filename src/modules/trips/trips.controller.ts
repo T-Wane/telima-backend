@@ -44,17 +44,20 @@ export class TripsController {
   @ApiOperation({ summary: 'Lister mes courses (client ou chauffeur)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'status', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Liste paginée des courses' })
   listMyTrips(
     @CurrentUser() user: AuthenticatedUser,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('status') status?: string,
   ) {
     return this.tripsService.listMyTrips(
       user.id,
       user.role,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
+      status,
     );
   }
 
