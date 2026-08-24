@@ -6,6 +6,7 @@ RUN npm ci
 COPY . .
 RUN npm run prisma:generate
 RUN npm run build
+RUN ls -la dist/ && ls -la dist/main.js || echo "dist/main.js NOT FOUND"
 
 FROM node:20-alpine
 WORKDIR /app
@@ -16,6 +17,7 @@ COPY prisma ./prisma
 RUN npm ci --omit=dev
 RUN npx prisma generate
 COPY --from=builder /app/dist ./dist
+RUN ls -la dist/ && ls -la dist/main.js || echo "dist/main.js NOT FOUND in stage 2"
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 RUN addgroup -S telima && adduser -S telima -G telima
