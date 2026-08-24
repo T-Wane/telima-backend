@@ -55,6 +55,7 @@ describe('TripsService - Sprint 3 (rating & payment-received)', () => {
       dispatchService as unknown as never,
       {} as never, // BroadcastService non utilisé par ces méthodes
       eventEmitter as unknown as never,
+      {} as never, // GeolocationService non utilisé par ces méthodes
     );
   });
 

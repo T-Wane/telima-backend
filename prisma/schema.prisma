@@ -567,18 +567,27 @@ enum CommissionPaymentStatus {
   pending
   succeeded
   failed
+  expired
 }
 
 // Paiement de commission par le chauffeur (Orange Money cote chauffeur uniquement,
 // le client paie cash - decisions actees Sprint 3). Idempotence garantie par la
-// contrainte unique sur transactionRef (webhook Orange Money potentiellement rejoue).
+// contrainte unique sur transactionRef (webhook Orange Money potentiellement rejoue)
+// et sur orderId (reconciliation webhook Orange Money WebPay).
 model CommissionPayment {
   id             String                  @id @default(uuid())
   driverId       String                  @map("driver_id")
   driver         Driver                  @relation(fields: [driverId], references: [id], onDelete: Cascade)
   amount         Decimal                 @db.Decimal(12, 2)
   status         CommissionPaymentStatus @default(pending)
-  transactionRef String?                 @unique @map("transaction_ref")
+
+  // Orange Money WebPay fields
+  transactionRef String?                 @unique @map("transaction_ref") // pay_token
+  orderId        String?                 @unique @map("order_id") // order_id Orange (max 30 chars)
+  notifToken     String?                 @map("notif_token") // pour verifier l'authenticite du webhook
+  paymentUrl     String?                 @map("payment_url") // URL de paiement Orange a ouvrir en webview
+  txnid          String?                 @map("txnid") // identifiant de transaction final retourne par Orange
+
   paidAt         DateTime?               @map("paid_at")
   createdAt      DateTime                @default(now()) @map("created_at")
   updatedAt      DateTime                @updatedAt @map("updated_at")

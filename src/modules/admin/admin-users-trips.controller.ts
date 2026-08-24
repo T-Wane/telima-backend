@@ -247,13 +247,29 @@ export class AdminUsersTripsController {
   @ApiOperation({ summary: 'Lister les paiements de commission (admin, pagination)' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
-  async listPayments(@Query('page') page?: string, @Query('limit') limit?: string) {
+  @ApiQuery({ name: 'status', required: false, description: 'Filtrer par statut (pending/succeeded/failed/expired)' })
+  @ApiQuery({ name: 'driverId', required: false, description: 'Filtrer par chauffeur' })
+  async listPayments(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('driverId') driverId?: string,
+  ) {
     const p = page ? parseInt(page, 10) : 1;
     const l = limit ? parseInt(limit, 10) : 20;
     const skip = (p - 1) * l;
 
+    const where: any = {};
+    if (status && ['pending', 'succeeded', 'failed', 'expired'].includes(status)) {
+      where.status = status;
+    }
+    if (driverId) {
+      where.driverId = driverId;
+    }
+
     const [payments, total] = await Promise.all([
       this.prisma.commissionPayment.findMany({
+        where,
         skip,
         take: l,
         orderBy: { createdAt: 'desc' },
@@ -263,7 +279,7 @@ export class AdminUsersTripsController {
           },
         },
       }),
-      this.prisma.commissionPayment.count(),
+      this.prisma.commissionPayment.count({ where }),
     ]);
 
     return {
@@ -273,11 +289,87 @@ export class AdminUsersTripsController {
         status: p.status,
         method: 'Orange Money',
         reference: p.transactionRef,
+        orderId: p.orderId,
+        paymentUrl: p.paymentUrl,
+        txnid: p.txnid,
+        paidAt: p.paidAt,
         createdAt: p.createdAt,
+        driverId: p.driverId,
         driver:
           [p.driver.user.firstName, p.driver.user.lastName].filter(Boolean).join(' ') ||
           p.driver.user.phone,
         driverPhone: p.driver.user.phone,
+      })),
+      meta: { total, page: p, limit: l, totalPages: Math.ceil(total / l) },
+    };
+  }
+
+  @Get('payments/:id')
+  @ApiOperation({ summary: 'Détail d\'un paiement de commission (admin)' })
+  async getPayment(@Param('id', ParseUUIDPipe) id: string) {
+    const payment = await this.prisma.commissionPayment.findUnique({
+      where: { id },
+      include: {
+        driver: {
+          include: { user: { select: { firstName: true, lastName: true, phone: true } } },
+        },
+      },
+    });
+    if (!payment) return null;
+    return {
+      id: payment.id,
+      amount: Number(payment.amount),
+      status: payment.status,
+      method: 'Orange Money',
+      transactionRef: payment.transactionRef,
+      orderId: payment.orderId,
+      notifToken: payment.notifToken,
+      paymentUrl: payment.paymentUrl,
+      txnid: payment.txnid,
+      paidAt: payment.paidAt,
+      createdAt: payment.createdAt,
+      updatedAt: payment.updatedAt,
+      driverId: payment.driverId,
+      driver:
+        [payment.driver.user.firstName, payment.driver.user.lastName].filter(Boolean).join(' ') ||
+        payment.driver.user.phone,
+      driverPhone: payment.driver.user.phone,
+    };
+  }
+
+  @Get('drivers/:id/payments')
+  @ApiOperation({ summary: 'Historique des paiements de commission d\'un chauffeur (admin)' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  async listDriverPayments(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const p = page ? parseInt(page, 10) : 1;
+    const l = limit ? parseInt(limit, 10) : 20;
+    const skip = (p - 1) * l;
+
+    const [payments, total] = await Promise.all([
+      this.prisma.commissionPayment.findMany({
+        where: { driverId: id },
+        skip,
+        take: l,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.commissionPayment.count({ where: { driverId: id } }),
+    ]);
+
+    return {
+      data: payments.map((p) => ({
+        id: p.id,
+        amount: Number(p.amount),
+        status: p.status,
+        orderId: p.orderId,
+        transactionRef: p.transactionRef,
+        txnid: p.txnid,
+        paidAt: p.paidAt,
+        createdAt: p.createdAt,
       })),
       meta: { total, page: p, limit: l, totalPages: Math.ceil(total / l) },
     };

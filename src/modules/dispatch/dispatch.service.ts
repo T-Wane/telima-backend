@@ -57,7 +57,7 @@ export class DispatchService {
     const trip = await this.prisma.trip.findUnique({
       where: { id: tripId },
       include: {
-        client: { select: { firstName: true, lastName: true } },
+        client: { select: { firstName: true, lastName: true, phone: true } },
         vehicleType: { select: { name: true, commissionPercentage: true } },
         deliveryDetails: {
           select: { recipientName: true, recipientPhone: true, parcelDescription: true },
@@ -115,10 +115,13 @@ export class DispatchService {
         dropoffAddress: trip?.dropoffAddress,
         estimatedPrice,
         commission,
-        distanceMeters: driver.distanceMeters,
+        tripDistanceMeters: trip ? Number(trip.distanceMeters ?? 0) : 0,
+        driverDistanceMeters: driver.distanceMeters,
+        durationSeconds: trip ? Number(trip.durationSeconds ?? 0) : 0,
         vehicleTypeId: driver.vehicleTypeId,
         vehicleTypeName: trip?.vehicleType.name,
         clientName,
+        clientPhone: trip ? (trip as any).client?.phone : undefined,
         recipientName: trip?.deliveryDetails?.recipientName,
         recipientPhone: trip?.deliveryDetails?.recipientPhone,
         parcelDescription: trip?.deliveryDetails?.parcelDescription,

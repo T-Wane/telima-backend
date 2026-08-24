@@ -136,6 +136,23 @@ export class TripRepository {
     });
   }
 
+  /**
+   * Coordonnees du point de ramassage (PostGIS geometry Unsupported par Prisma,
+   * donc SQL brut). Utilise pour le calcul d'ETA chauffeur->pickup.
+   */
+  async getPickupCoordinates(
+    tripId: string,
+  ): Promise<{ lat: number; lng: number } | null> {
+    const result = await this.prisma.$queryRaw<{ lat: number; lng: number }[]>`
+      SELECT
+        ST_Y(pickup_location)::float AS lat,
+        ST_X(pickup_location)::float AS lng
+      FROM trips
+      WHERE id = ${tripId}
+    `;
+    return result[0] ?? null;
+  }
+
   // Vrai si le chauffeur detient une tentative de dispatch active pour ce trip
   // (garde-fou anti auto-assignation, cf. TripsService.updateStatus case accepted).
   async hasActiveDispatchAttempt(tripId: string, driverId: string): Promise<boolean> {
@@ -193,15 +210,11 @@ export class TripRepository {
   }
 
   async updateStatus(tripId: string, data: TripUpdateData) {
-    return this.prisma.trip.update({
+    await this.prisma.trip.update({
       where: { id: tripId },
       data,
-      include: {
-        client: { select: { id: true, phone: true, firstName: true, lastName: true } },
-        driver: { select: { id: true, rating: true } },
-        vehicleType: true,
-      },
     });
+    return this.findById(tripId);
   }
 
   async updateStatusIfPending(

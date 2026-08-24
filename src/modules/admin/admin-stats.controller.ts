@@ -54,23 +54,46 @@ export class AdminStatsController {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [revenue, monthRevenue, commissionPaid, commissionPending, paymentsCount] =
-      await Promise.all([
-        this.prisma.trip.aggregate({
-          where: { status: TripStatus.completed },
-          _sum: { finalPrice: true, commissionAmount: true },
-        }),
-        this.prisma.trip.aggregate({
-          where: { status: TripStatus.completed, completedAt: { gte: startOfMonth } },
-          _sum: { finalPrice: true, commissionAmount: true },
-        }),
-        this.prisma.commissionPayment.aggregate({
-          where: { status: 'succeeded' },
-          _sum: { amount: true },
-        }),
-        this.prisma.driver.aggregate({ _sum: { commissionDue: true } }),
-        this.prisma.commissionPayment.count(),
-      ]);
+    const [
+      revenue,
+      monthRevenue,
+      commissionPaid,
+      commissionPending,
+      paymentsCount,
+      paymentsSucceeded,
+      paymentsPending,
+      paymentsFailed,
+      paymentsExpired,
+      paymentsSucceededAmount,
+      paymentsPendingAmount,
+    ] = await Promise.all([
+      this.prisma.trip.aggregate({
+        where: { status: TripStatus.completed },
+        _sum: { finalPrice: true, commissionAmount: true },
+      }),
+      this.prisma.trip.aggregate({
+        where: { status: TripStatus.completed, completedAt: { gte: startOfMonth } },
+        _sum: { finalPrice: true, commissionAmount: true },
+      }),
+      this.prisma.commissionPayment.aggregate({
+        where: { status: 'succeeded' },
+        _sum: { amount: true },
+      }),
+      this.prisma.driver.aggregate({ _sum: { commissionDue: true } }),
+      this.prisma.commissionPayment.count(),
+      this.prisma.commissionPayment.count({ where: { status: 'succeeded' } }),
+      this.prisma.commissionPayment.count({ where: { status: 'pending' } }),
+      this.prisma.commissionPayment.count({ where: { status: 'failed' } }),
+      this.prisma.commissionPayment.count({ where: { status: 'expired' } }),
+      this.prisma.commissionPayment.aggregate({
+        where: { status: 'succeeded' },
+        _sum: { amount: true },
+      }),
+      this.prisma.commissionPayment.aggregate({
+        where: { status: 'pending' },
+        _sum: { amount: true },
+      }),
+    ]);
 
     return {
       revenue: {
@@ -83,7 +106,15 @@ export class AdminStatsController {
         collected: Number(commissionPaid._sum.amount ?? 0),
         outstanding: Number(commissionPending._sum.commissionDue ?? 0),
       },
-      payments: { count: paymentsCount },
+      payments: {
+        count: paymentsCount,
+        succeeded: paymentsSucceeded,
+        pending: paymentsPending,
+        failed: paymentsFailed,
+        expired: paymentsExpired,
+        succeededAmount: Number(paymentsSucceededAmount._sum.amount ?? 0),
+        pendingAmount: Number(paymentsPendingAmount._sum.amount ?? 0),
+      },
     };
   }
 

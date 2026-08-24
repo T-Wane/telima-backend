@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Server } from 'socket.io';
 import { RoomsService } from './rooms.service';
 
 @Injectable()
 export class BroadcastService {
+  private readonly logger = new Logger(BroadcastService.name);
   private server: Server | null = null;
 
   constructor(private readonly rooms: RoomsService) {}
@@ -25,6 +26,6 @@ export class BroadcastService {
   }
 
   broadcastToDrivers(event: string, data: unknown): void {
-    this.server?.emit(event, data);
+    this.logger.warn('broadcastToDrivers called but not implemented (would broadcast to ALL sockets)');
   }
 }

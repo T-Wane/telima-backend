@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { Socket } from 'socket.io';
 import { RoomsService } from '../services/rooms.service';
 import { PresenceService } from '../services/presence.service';
@@ -12,12 +14,28 @@ export class ConnectionHandler {
     private readonly rooms: RoomsService,
     private readonly presence: PresenceService,
     private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly config: ConfigService,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
-    const user = (client as any).user;
-    if (!user) {
-      this.logger.warn(`Socket ${client.id} rejected: no user payload`);
+    // Le guard WsJwtGuard ne s'exécute que sur @SubscribeMessage, pas sur handleConnection.
+    // On vérifie donc le token ici directement pour authentifier la connexion.
+    const token = client.handshake.auth?.token as string | undefined;
+    if (!token) {
+      this.logger.warn(`Socket ${client.id} rejected: no token`);
+      client.disconnect();
+      return;
+    }
+
+    let user: any;
+    try {
+      user = this.jwtService.verify(token, {
+        secret: this.config.get<string>('JWT_ACCESS_SECRET'),
+      });
+      (client as any).user = user;
+    } catch {
+      this.logger.warn(`Socket ${client.id} rejected: invalid token`);
       client.disconnect();
       return;
     }

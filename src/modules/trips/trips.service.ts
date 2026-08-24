@@ -10,6 +10,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PricingService } from '../pricing/pricing.service';
 import { DispatchService } from '../dispatch/dispatch.service';
 import { BroadcastService } from '../events/services/broadcast.service';
+import { GeolocationService } from '../geolocation/geolocation.service';
 import { DomainEvents } from '../domain-events/domain-events.constants';
 import { TripRepository } from './trip.repository';
 import type {
@@ -41,6 +42,7 @@ export class TripsService {
     private readonly dispatchService: DispatchService,
     private readonly broadcast: BroadcastService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly geolocation: GeolocationService,
   ) {}
 
   async createTrip(clientId: string, dto: CreateTripDto) {
@@ -236,10 +238,29 @@ export class TripsService {
     const wsEvent = getWsEventForService(trip.serviceType, TripStatus.accepted);
     if (wsEvent) {
       const vehicle = trip.driver?.vehicle;
-      const etaMinutes = trip.durationSeconds
-        ? Math.max(1, Math.ceil(trip.durationSeconds / 60))
-        : undefined;
-      this.broadcast.emitToUser(trip.clientId, wsEvent, {
+      // ETA = temps pour le chauffeur d'atteindre le point de ramassage, pas la
+      // duree totale du trajet. Distance chauffeur->pickup a vitesse moyenne
+      // urbaine (~25 km/h), facteur 1.4 pour approximer le routage routier.
+      let etaMinutes: number | undefined;
+      let driverLat: number | undefined;
+      let driverLng: number | undefined;
+      try {
+        const driverPos = await this.geolocation.getDriverLocation(event.driverId);
+        const pickupCoords = await this.tripRepo.getPickupCoordinates(event.tripId);
+        if (driverPos) {
+          driverLat = driverPos.lat;
+          driverLng = driverPos.lng;
+        }
+        if (driverPos && pickupCoords) {
+          const distMeters = await this.geolocation.calculateDistance(driverPos, pickupCoords);
+          const roadMeters = distMeters * 1.4;
+          etaMinutes = Math.max(1, Math.ceil(roadMeters / (25000 / 60)));
+        }
+      } catch {
+        // ETA indisponible (position chauffeur inconnue) : le client affichera
+        // son fallback local.
+      }
+      const acceptedPayload = {
         tripId: trip.id,
         driverId: event.driverId,
         driverName:
@@ -251,8 +272,17 @@ export class TripsService {
         vehicleModel: vehicle ? `${vehicle.brand} ${vehicle.model}` : undefined,
         vehicleType: vehicle?.vehicleType?.name,
         etaMinutes,
+        driverLat,
+        driverLng,
         estimatedPrice: trip.estimatedPrice ? Number(trip.estimatedPrice) : undefined,
-      });
+      };
+      // Émettre vers les deux canaux : user room (le client est toujours dans sa
+      // user room à la connexion) et trip room (le client joint la trip room dès
+      // createTrip). Après une reconnexion WS, le client ne rejoint que sa user
+      // room automatiquement + trip:join si _currentTripId est set, donc les deux
+      // canaux couvrent tous les scénarios.
+      this.broadcast.emitToUser(trip.clientId, wsEvent, acceptedPayload);
+      this.broadcast.emitToTrip(trip.id, wsEvent, acceptedPayload);
     }
 
     const acceptEvent: TripAcceptedEvent = {
@@ -305,6 +335,7 @@ export class TripsService {
         pickupAddress: trip.pickupAddress,
         dropoffAddress: trip.dropoffAddress,
         estimatedPrice: trip.estimatedPrice ? Number(trip.estimatedPrice) : undefined,
+        finalPrice: trip.finalPrice ? Number(trip.finalPrice) : undefined,
         driverName:
           `${trip.driver?.user?.firstName ?? ''} ${trip.driver?.user?.lastName ?? ''}`.trim() ||
           undefined,

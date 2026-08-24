@@ -6,9 +6,10 @@ import { TripEventHandler } from './handlers/trip-event.handler';
 import { PricingModule } from '../pricing/pricing.module';
 import { DispatchModule } from '../dispatch/dispatch.module';
 import { EventsModule } from '../events/events.module';
+import { GeolocationModule } from '../geolocation/geolocation.module';
 
 @Module({
-  imports: [PricingModule, DispatchModule, EventsModule],
+  imports: [PricingModule, DispatchModule, EventsModule, GeolocationModule],
   controllers: [TripsController],
   providers: [TripsService, TripRepository, TripEventHandler],
   exports: [TripsService],

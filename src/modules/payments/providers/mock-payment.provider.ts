@@ -24,6 +24,10 @@ export class MockPaymentProvider implements PaymentProvider {
     return Promise.resolve({ transactionRef, status: 'succeeded' });
   }
 
+  checkTransactionStatus(_transactionRef: string, _orderId: string, _amount: number) {
+    return Promise.resolve({ status: 'succeeded' as const });
+  }
+
   verifyWebhook(_payload: Record<string, unknown>, _signature?: string): WebhookVerification {
     // Le mock ne recoit jamais de webhook (confirmation synchrone).
     this.logger.warn('[MOCK] Webhook recu mais non supporte en mode mock');
