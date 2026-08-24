@@ -52,7 +52,7 @@ async function bootstrap() {
   const isProd = configService.get<string>('NODE_ENV') === 'production';
 
   app.enableCors({
-    origin: allOrigins.length > 0 ? allOrigins : !isProd,
+    origin: allOrigins.length > 0 ? allOrigins : true,
     credentials: true,
   });
 
