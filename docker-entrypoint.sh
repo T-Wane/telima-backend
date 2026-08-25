@@ -5,8 +5,8 @@ echo "Running Prisma migrations..."
 npx prisma migrate deploy
 
 echo "Seeding database..."
-node dist/prisma/seed.js || echo "Seed failed (may already be seeded)"
-node dist/prisma/seed-service-config.js || echo "Service-config seed failed"
+npx prisma db seed || echo "Seed failed (may already be seeded)"
+npx ts-node prisma/seed-service-config.ts || echo "Service-config seed failed"
 
 echo "Starting application..."
 exec node dist/src/main
