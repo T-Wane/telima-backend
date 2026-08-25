@@ -15,7 +15,7 @@ RUN apk add --no-cache openssl libc6-compat
 COPY package*.json ./
 COPY prisma ./prisma
 RUN npm ci --omit=dev
-RUN npm install --no-save ts-node
+RUN npm install --no-save ts-node typescript
 RUN npx prisma generate
 COPY --from=builder /app/dist ./dist
 RUN ls -la dist/ && ls -la dist/main.js || echo "dist/main.js NOT FOUND in stage 2"
