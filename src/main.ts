@@ -38,6 +38,9 @@ async function bootstrap() {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+  // Si CORS_ORIGINS contient '*', on autorise toutes les origines (wildcard).
+  const isWildcard = corsOrigins.includes('*');
+
   // En dev, on ajoute toujours les origines locales du dashboard
   const devOrigins = [
     'http://localhost:5173',
@@ -52,8 +55,8 @@ async function bootstrap() {
   const isProd = configService.get<string>('NODE_ENV') === 'production';
 
   app.enableCors({
-    origin: allOrigins.length > 0 ? allOrigins : true,
-    credentials: true,
+    origin: isWildcard ? true : allOrigins.length > 0 ? allOrigins : true,
+    credentials: !isWildcard,
   });
 
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
