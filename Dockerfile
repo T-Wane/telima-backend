@@ -6,6 +6,14 @@ RUN npm ci
 COPY . .
 RUN npm run prisma:generate
 RUN npm run build
+RUN mkdir -p dist/prisma && npx tsc prisma/seed.ts prisma/seed-service-config.ts \
+    --outDir dist/prisma \
+    --esModuleInterop \
+    --module commonjs \
+    --target ES2021 \
+    --skipLibCheck \
+    --moduleResolution node
+RUN ls -la dist/prisma/
 RUN ls -la dist/ && ls -la dist/main.js || echo "dist/main.js NOT FOUND"
 
 FROM node:20-alpine
@@ -15,7 +23,6 @@ RUN apk add --no-cache openssl libc6-compat
 COPY package*.json ./
 COPY prisma ./prisma
 RUN npm ci --omit=dev
-RUN npm install --no-save ts-node typescript
 RUN npx prisma generate
 COPY --from=builder /app/dist ./dist
 RUN ls -la dist/ && ls -la dist/main.js || echo "dist/main.js NOT FOUND in stage 2"
