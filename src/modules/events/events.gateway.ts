@@ -114,6 +114,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { driverId: string },
   ) {
+    this.disconnectionHandler.cancelGracePeriod(data.driverId);
     this.rooms.joinDriverRoom(client, data.driverId);
     await this.presence.setOnline(data.driverId);
     this.logger.log(`Driver ${data.driverId} rejoined rooms after reconnection`);
@@ -141,6 +142,15 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         heading: data.heading,
       });
     }
+    return { acknowledged: true };
+  }
+
+  @SubscribeMessage('driver:heartbeat')
+  async handleDriverHeartbeat(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { driverId: string },
+  ) {
+    await this.presence.heartbeat(data.driverId);
     return { acknowledged: true };
   }
 

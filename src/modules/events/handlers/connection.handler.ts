@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Socket } from 'socket.io';
 import { RoomsService } from '../services/rooms.service';
 import { PresenceService } from '../services/presence.service';
+import { DisconnectionHandler } from './disconnection.handler';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class ConnectionHandler {
   constructor(
     private readonly rooms: RoomsService,
     private readonly presence: PresenceService,
+    private readonly disconnectionHandler: DisconnectionHandler,
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
@@ -44,6 +46,10 @@ export class ConnectionHandler {
 
     this.rooms.joinUserRoom(client, user.sub);
 
+    if (user.role === 'admin') {
+      this.rooms.joinAdminRoom(client);
+    }
+
     if (user.role === 'driver') {
       const driver = await this.prisma.driver.findFirst({
         where: { userId: user.sub },
@@ -51,6 +57,7 @@ export class ConnectionHandler {
       });
       if (driver) {
         (client as any).driverId = driver.id;
+        this.disconnectionHandler.cancelGracePeriod(driver.id);
         this.rooms.joinDriverRoom(client, driver.id);
         await this.presence.setOnline(driver.id);
       }

@@ -11,12 +11,18 @@ import {
 
 enum Environment {
   Development = 'development',
+  Preprod = 'preprod',
   Test = 'test',
   Production = 'production',
 }
 
 class EnvironmentVariables {
-  @IsIn([Environment.Development, Environment.Test, Environment.Production])
+  @IsIn([
+    Environment.Development,
+    Environment.Preprod,
+    Environment.Test,
+    Environment.Production,
+  ])
   NODE_ENV: Environment = Environment.Development;
 
   @IsNumber()

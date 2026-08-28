@@ -23,6 +23,12 @@ export class RoomsService {
     this.logger.debug(`Socket ${client.id} joined room ${room}`);
   }
 
+  joinAdminRoom(client: Socket): void {
+    const room = 'admin:dashboard';
+    client.join(room);
+    this.logger.debug(`Socket ${client.id} joined room ${room}`);
+  }
+
   leaveAllRooms(client: Socket): void {
     const rooms = Array.from(client.rooms).filter((r) => r !== client.id);
     rooms.forEach((room) => client.leave(room));
@@ -39,5 +45,9 @@ export class RoomsService {
 
   getTripRoom(tripId: string): string {
     return `trip:${tripId}`;
+  }
+
+  getAdminRoom(): string {
+    return 'admin:dashboard';
   }
 }

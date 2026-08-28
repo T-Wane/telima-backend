@@ -25,6 +25,10 @@ export class BroadcastService {
     this.server?.to(this.rooms.getTripRoom(tripId)).emit(event, data);
   }
 
+  emitToAdmin(event: string, data: unknown): void {
+    this.server?.to(this.rooms.getAdminRoom()).emit(event, data);
+  }
+
   broadcastToDrivers(event: string, data: unknown): void {
     this.logger.warn('broadcastToDrivers called but not implemented (would broadcast to ALL sockets)');
   }

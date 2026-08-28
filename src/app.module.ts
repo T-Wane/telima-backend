@@ -35,6 +35,11 @@ import { IdempotencyInterceptor } from './common/interceptors/idempotency.interc
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: [
+        `.env.${process.env.NODE_ENV ?? 'development'}.local`,
+        `.env.${process.env.NODE_ENV ?? 'development'}`,
+        '.env',
+      ],
       validate,
     }),
     LoggerModule.forRootAsync({

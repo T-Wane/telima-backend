@@ -34,8 +34,9 @@ export class DispatchService {
     tripId: string,
     pickup: { lat: number; lng: number },
     serviceType: string,
+    vehicleTypeId?: string,
   ): Promise<void> {
-    this.logger.log(`Starting dispatch for trip ${tripId} (service: ${serviceType})`);
+    this.logger.log(`Starting dispatch for trip ${tripId} (service: ${serviceType}, vehicleType: ${vehicleTypeId ?? 'any'})`);
 
     const config = await this.serviceConfig.getDispatchConfig(serviceType);
 
@@ -43,6 +44,7 @@ export class DispatchService {
       pickup,
       config.dispatchRadiusMeters,
       serviceType,
+      vehicleTypeId,
     );
 
     if (candidates.length === 0) {
@@ -175,7 +177,7 @@ export class DispatchService {
   private async checkAndRetryDispatch(tripId: string): Promise<void> {
     const trip = await this.prisma.trip.findUnique({
       where: { id: tripId },
-      select: { status: true, serviceType: true },
+      select: { status: true, serviceType: true, vehicleTypeId: true },
     });
 
     if (!trip || trip.status !== 'pending') {
@@ -208,7 +210,7 @@ export class DispatchService {
         FROM trips WHERE id = ${tripId}
       `;
       const pickup = pickupData[0] ?? { lat: 0, lng: 0 };
-      await this.attemptDispatch(tripId, pickup, trip.serviceType);
+      await this.attemptDispatch(tripId, pickup, trip.serviceType, trip.vehicleTypeId);
     }
   }
 

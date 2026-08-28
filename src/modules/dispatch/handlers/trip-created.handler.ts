@@ -17,6 +17,7 @@ export class TripCreatedHandler {
       event.tripId,
       { lat: event.pickupLat, lng: event.pickupLng },
       event.serviceType,
+      event.vehicleTypeId,
     );
   }
 }

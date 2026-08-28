@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsNumber, IsOptional, IsObject, Min, Max } from 'class-validator';
+import { IsString, IsEnum, IsNumber, IsOptional, IsObject, IsBoolean, Min, Max } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ServiceType } from '@prisma/client';
 
@@ -69,6 +69,7 @@ export class CreateTripDto {
 
   @ApiPropertyOptional({ description: 'Colis fragile', default: false })
   @IsOptional()
+  @IsBoolean()
   isFragile?: boolean;
 
   // --- Détails course (serviceType = ride | intercity) ---

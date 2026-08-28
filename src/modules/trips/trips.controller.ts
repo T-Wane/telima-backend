@@ -128,6 +128,20 @@ export class TripsController {
     return this.tripsService.confirmPaymentReceived(id, user.id, user.role, dto);
   }
 
+  @Post(':id/complete')
+  @ApiOperation({ summary: 'Terminer une course atomiquement (paiement + statut completed)' })
+  @ApiResponse({ status: 200, description: 'Course terminée (paiement + statut en une transaction)' })
+  @ApiResponse({ status: 400, description: 'Statut de course invalide pour cette action' })
+  @ApiResponse({ status: 403, description: "Ce n'est pas votre course" })
+  @ApiResponse({ status: 404, description: 'Course introuvable' })
+  completeTrip(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: PaymentReceivedDto,
+  ) {
+    return this.tripsService.completeTrip(id, user.id, user.role, dto);
+  }
+
   @Post(':id/rating')
   @ApiOperation({ summary: 'Noter la course (client ou chauffeur)' })
   @ApiResponse({ status: 201, description: 'Note enregistrée' })

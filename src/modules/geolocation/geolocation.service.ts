@@ -32,6 +32,7 @@ export class GeolocationService {
     point: GeoPoint,
     radiusMeters: number,
     serviceType?: string,
+    vehicleTypeId?: string,
   ): Promise<NearbyDriver[]> {
     const results = await this.prisma.$queryRaw<NearbyDriver[]>(Prisma.sql`
       SELECT
@@ -55,6 +56,7 @@ export class GeolocationService {
           ${radiusMeters}
         )
         ${serviceType ? Prisma.sql`AND v.vehicle_type_id IN (SELECT id FROM vehicle_types WHERE service_type = ${serviceType}::\"ServiceType\" AND is_active = true)` : Prisma.empty}
+        ${vehicleTypeId ? Prisma.sql`AND v.vehicle_type_id = ${vehicleTypeId}` : Prisma.empty}
       ORDER BY "distanceMeters" ASC
     `);
 

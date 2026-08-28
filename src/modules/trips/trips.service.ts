@@ -31,6 +31,7 @@ import { UpdateTripStatusDto } from './dto/update-trip-status.dto';
 import { CreateRatingDto } from './dto/create-rating.dto';
 import { PaymentReceivedDto } from './dto/payment-received.dto';
 import { TripStatus, SenderRole } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class TripsService {
@@ -43,6 +44,7 @@ export class TripsService {
     private readonly broadcast: BroadcastService,
     private readonly eventEmitter: EventEmitter2,
     private readonly geolocation: GeolocationService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async createTrip(clientId: string, dto: CreateTripDto) {
@@ -186,6 +188,7 @@ export class TripsService {
         updateData.cancelledAt = new Date();
         updateData.cancelReason = dto.cancelReason;
         await this.dispatchService.releaseLocksForTrip(tripId);
+        await this._notifyDispatchedDriversOfCancellation(tripId, trip.serviceType, dto.cancelReason ?? 'client');
         break;
 
       case TripStatus.cancelled_by_driver:
@@ -202,13 +205,14 @@ export class TripsService {
         updateData.cancelledAt = new Date();
         updateData.cancelReason = dto.cancelReason ?? 'auto';
         await this.dispatchService.releaseLocksForTrip(tripId);
+        await this._notifyDispatchedDriversOfCancellation(tripId, trip.serviceType, dto.cancelReason ?? 'auto');
         break;
     }
 
     const updated = await this.tripRepo.updateStatus(tripId, updateData);
 
     this.emitStatusEvent(updated, userId, dto.cancelReason);
-    this.broadcastStatusEvent(updated, dto.status);
+    this.broadcastStatusEvent(updated, dto.status, dto.cancelReason);
 
     this.logger.log(`Trip ${tripId} status updated: ${trip.status} → ${dto.status}`);
     return updated;
@@ -283,6 +287,7 @@ export class TripsService {
       // canaux couvrent tous les scénarios.
       this.broadcast.emitToUser(trip.clientId, wsEvent, acceptedPayload);
       this.broadcast.emitToTrip(trip.id, wsEvent, acceptedPayload);
+      this.broadcast.emitToAdmin('admin:trip_update', { ...acceptedPayload, serviceType: trip.serviceType, status: 'accepted' });
     }
 
     const acceptEvent: TripAcceptedEvent = {
@@ -326,10 +331,31 @@ export class TripsService {
     }
   }
 
-  private broadcastStatusEvent(trip: any, status: TripStatus): void {
+  private async _notifyDispatchedDriversOfCancellation(
+    tripId: string,
+    serviceType: string,
+    reason: string,
+  ): Promise<void> {
+    const wsEvent = getWsEventForService(serviceType, TripStatus.cancelled_by_client);
+    if (!wsEvent) return;
+
+    const attempts = await this.prisma.dispatchAttempt.findMany({
+      where: { tripId, status: 'driver_notified' },
+      select: { driverId: true },
+    });
+
+    for (const attempt of attempts) {
+      this.broadcast.emitToDriver(attempt.driverId, wsEvent, {
+        tripId,
+        reason,
+      });
+    }
+  }
+
+  private broadcastStatusEvent(trip: any, status: TripStatus, cancelReason?: string): void {
     const wsEvent = getWsEventForService(trip.serviceType, status);
     if (wsEvent) {
-      this.broadcast.emitToTrip(trip.id, wsEvent, {
+      const payload = {
         tripId: trip.id,
         status,
         pickupAddress: trip.pickupAddress,
@@ -340,7 +366,16 @@ export class TripsService {
           `${trip.driver?.user?.firstName ?? ''} ${trip.driver?.user?.lastName ?? ''}`.trim() ||
           undefined,
         driverPhone: trip.driver?.user?.phone,
-      });
+        reason: cancelReason ?? trip.cancelReason,
+      };
+      this.broadcast.emitToTrip(trip.id, wsEvent, payload);
+      if (trip.clientId) {
+        this.broadcast.emitToUser(trip.clientId, wsEvent, payload);
+      }
+      if (trip.driverId) {
+        this.broadcast.emitToDriver(trip.driverId, wsEvent, payload);
+      }
+      this.broadcast.emitToAdmin('admin:trip_update', { ...payload, serviceType: trip.serviceType });
     }
   }
 
@@ -401,6 +436,47 @@ export class TripsService {
     }
     this.logger.log(`Payment received for trip ${tripId}: ${dto.amount}`);
     return this.tripRepo.markPaymentReceived(tripId, dto.amount);
+  }
+
+  async completeTrip(
+    tripId: string,
+    userId: string,
+    role: string,
+    dto: PaymentReceivedDto,
+  ) {
+    if (role !== 'driver') {
+      throw new ForbiddenException('Seul un chauffeur peut terminer une course');
+    }
+    const trip = await this.getTrip(tripId);
+    const driver = await this.tripRepo.findDriverByUserId(userId);
+    if (!driver || trip.driverId !== driver.id) {
+      throw new ForbiddenException("Ce n'est pas votre course");
+    }
+    if (trip.status !== TripStatus.in_progress) {
+      throw new BadRequestException(`Terminaison impossible depuis le statut actuel: ${trip.status}`);
+    }
+    if (!canTransition(trip.status, TripStatus.completed)) {
+      throw new BadRequestException(`Transition invalide: ${trip.status} → completed`);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.trip.update({
+        where: { id: tripId },
+        data: {
+          status: TripStatus.completed,
+          completedAt: new Date(),
+          finalPrice: trip.estimatedPrice,
+          paymentReceivedAt: new Date(),
+          paymentReceivedAmount: dto.amount,
+        },
+      });
+    });
+
+    const updated = await this.getTrip(tripId);
+    this.emitStatusEvent(updated, userId);
+    this.broadcastStatusEvent(updated, TripStatus.completed);
+    this.logger.log(`Trip ${tripId} completed atomically (payment + status) by driver ${driver.id}`);
+    return updated;
   }
 
   /**

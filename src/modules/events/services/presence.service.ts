@@ -1,6 +1,7 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { REDIS_CLIENT } from '../../../redis/redis.module';
+import { PrismaService } from '../../../prisma/prisma.service';
 
 const PRESENCE_KEY = 'telima:driver:presence';
 const PRESENCE_TTL_SECONDS = 120;
@@ -9,16 +10,31 @@ const PRESENCE_TTL_SECONDS = 120;
 export class PresenceService {
   private readonly logger = new Logger(PresenceService.name);
 
-  constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
+  constructor(
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async setOnline(driverId: string): Promise<void> {
     await this.redis.zadd(PRESENCE_KEY, Date.now(), driverId);
-    this.logger.debug(`Driver ${driverId} marked online`);
+    await this.prisma.driver.update({
+      where: { id: driverId },
+      data: { isOnline: true },
+    }).catch((err) => {
+      this.logger.warn(`Failed to sync isOnline=true in DB for driver ${driverId}: ${err.message}`);
+    });
+    this.logger.debug(`Driver ${driverId} marked online (Redis + DB)`);
   }
 
   async setOffline(driverId: string): Promise<void> {
     await this.redis.zrem(PRESENCE_KEY, driverId);
-    this.logger.debug(`Driver ${driverId} marked offline`);
+    await this.prisma.driver.update({
+      where: { id: driverId },
+      data: { isOnline: false },
+    }).catch((err) => {
+      this.logger.warn(`Failed to sync isOnline=false in DB for driver ${driverId}: ${err.message}`);
+    });
+    this.logger.debug(`Driver ${driverId} marked offline (Redis + DB)`);
   }
 
   async isOnline(driverId: string): Promise<boolean> {
