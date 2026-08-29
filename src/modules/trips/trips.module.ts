@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TripsController } from './trips.controller';
 import { TripsService } from './trips.service';
 import { TripRepository } from './trip.repository';
@@ -9,7 +9,7 @@ import { EventsModule } from '../events/events.module';
 import { GeolocationModule } from '../geolocation/geolocation.module';
 
 @Module({
-  imports: [PricingModule, DispatchModule, EventsModule, GeolocationModule],
+  imports: [PricingModule, DispatchModule, forwardRef(() => EventsModule), GeolocationModule],
   controllers: [TripsController],
   providers: [TripsService, TripRepository, TripEventHandler],
   exports: [TripsService],

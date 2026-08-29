@@ -7,7 +7,7 @@ import { EventsModule } from '../events/events.module';
 import { QueueModule } from '../queue/queue.module';
 
 @Module({
-  imports: [GeolocationModule, EventsModule, forwardRef(() => QueueModule)],
+  imports: [GeolocationModule, forwardRef(() => EventsModule), forwardRef(() => QueueModule)],
   providers: [DispatchService, TripCreatedHandler, WsDriverDeclineHandler],
   exports: [DispatchService],
 })
