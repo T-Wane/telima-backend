@@ -10,6 +10,7 @@ import { ConnectionHandler } from './handlers/connection.handler';
 import { DisconnectionHandler } from './handlers/disconnection.handler';
 import { ChatModule } from '../chat/chat.module';
 import { GeolocationModule } from '../geolocation/geolocation.module';
+import { TripsModule } from '../trips/trips.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { GeolocationModule } from '../geolocation/geolocation.module';
       }),
     }),
     forwardRef(() => ChatModule),
+    forwardRef(() => TripsModule),
     GeolocationModule,
   ],
   providers: [

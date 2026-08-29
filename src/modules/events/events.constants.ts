@@ -12,6 +12,7 @@ export const WsEvents = {
   DeliveryDelivered: 'delivery:delivered',
   DeliveryClientConfirmed: 'delivery:client_confirmed',
   DeliveryCancelled: 'delivery:cancelled',
+  DeliveryIssueReported: 'delivery:issue_reported',
 
   // /drivers namespace
   DriverLocationUpdate: 'driver:location_update',

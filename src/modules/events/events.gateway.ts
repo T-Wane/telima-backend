@@ -24,6 +24,7 @@ import { DisconnectionHandler } from './handlers/disconnection.handler';
 import { WsEvents } from './events.constants';
 import { DomainEvents } from '../domain-events/domain-events.constants';
 import { ChatService } from '../chat/chat.service';
+import { TripsService } from '../trips/trips.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SenderRole } from '@prisma/client';
 
@@ -50,6 +51,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     private readonly disconnectionHandler: DisconnectionHandler,
     private readonly eventEmitter: EventEmitter2,
     private readonly chatService: ChatService,
+    private readonly tripsService: TripsService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -208,17 +210,32 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     if (!user) {
       return { acknowledged: false, error: 'Non authentifié' };
     }
-    const trip = await this.prisma.trip.findUnique({
-      where: { id: data.tripId },
-      select: { clientId: true },
-    });
-    if (!trip || trip.clientId !== user.sub) {
-      return { acknowledged: false, error: 'Course introuvable ou non autorisée' };
+    try {
+      await this.tripsService.confirmDelivery(data.tripId, user.sub);
+      return { acknowledged: true };
+    } catch (err) {
+      this.logger.warn(`Delivery confirmation failed for trip ${data.tripId}: ${(err as Error).message}`);
+      return { acknowledged: false, error: (err as Error).message };
     }
-    this.broadcast.emitToTrip(data.tripId, WsEvents.DeliveryClientConfirmed, {
-      tripId: data.tripId,
-    });
-    return { acknowledged: true };
+  }
+
+  // Signalement de probleme de livraison par le client (delivery:issue_reported).
+  @SubscribeMessage(WsEvents.DeliveryIssueReported)
+  async handleDeliveryIssueReported(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { deliveryId: string; reason: string },
+  ) {
+    const user = (client as any).user;
+    if (!user) {
+      return { acknowledged: false, error: 'Non authentifié' };
+    }
+    try {
+      await this.tripsService.reportDeliveryIssue(data.deliveryId, user.sub, data.reason);
+      return { acknowledged: true };
+    } catch (err) {
+      this.logger.warn(`Delivery issue report failed for trip ${data.deliveryId}: ${(err as Error).message}`);
+      return { acknowledged: false, error: (err as Error).message };
+    }
   }
 
   // Chat (Sprint 3) : persistance + rediffusion dans la room du trip (message:received).

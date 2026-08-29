@@ -155,4 +155,29 @@ export class TripsController {
   ) {
     return this.tripsService.rateTrip(id, user.id, user.role, dto);
   }
+
+  @Post(':id/confirm-delivery')
+  @ApiOperation({ summary: 'Confirmer la réception de la livraison (client)' })
+  @ApiResponse({ status: 200, description: 'Livraison confirmée' })
+  @ApiResponse({ status: 400, description: 'La livraison doit être terminée' })
+  @ApiResponse({ status: 403, description: "Ce n'est pas votre course" })
+  @ApiResponse({ status: 409, description: 'Livraison déjà confirmée' })
+  confirmDelivery(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tripsService.confirmDelivery(id, user.id);
+  }
+
+  @Post(':id/report-issue')
+  @ApiOperation({ summary: 'Signaler un problème de livraison (client)' })
+  @ApiResponse({ status: 200, description: 'Problème enregistré' })
+  @ApiResponse({ status: 403, description: "Ce n'est pas votre course" })
+  reportIssue(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body('reason') reason: string,
+  ) {
+    return this.tripsService.reportDeliveryIssue(id, user.id, reason);
+  }
 }

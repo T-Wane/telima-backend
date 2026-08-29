@@ -313,6 +313,11 @@ model Trip {
   // Renseignee par CommissionService sur trip.completed (finalPrice x commissionPercentage).
   commissionAmount Decimal? @map("commission_amount") @db.Decimal(10, 2)
 
+  // Confirmation de reception par le client (livraison uniquement).
+  deliveryConfirmedAt DateTime? @map("delivery_confirmed_at")
+  // Signalement de probleme par le client (livraison uniquement).
+  deliveryIssueReported String?   @map("delivery_issue_reported")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

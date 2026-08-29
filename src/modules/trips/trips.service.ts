@@ -24,7 +24,7 @@ import type {
   DispatchFailedEvent,
   TripRatedEvent,
 } from '../domain-events/events/domain-events';
-import { getWsEventForService } from '../events/events.constants';
+import { getWsEventForService, WsEvents } from '../events/events.constants';
 import { canTransition } from './interfaces/trip-lifecycle.interface';
 import { CreateTripDto } from './dto/create-trip.dto';
 import { UpdateTripStatusDto } from './dto/update-trip-status.dto';
@@ -523,5 +523,45 @@ export class TripsService {
     this.eventEmitter.emit(DomainEvents.TripRated, event);
 
     return rating;
+  }
+
+  async confirmDelivery(tripId: string, userId: string) {
+    const trip = await this.getTrip(tripId);
+    if (trip.clientId !== userId) {
+      throw new ForbiddenException("Ce n'est pas votre course");
+    }
+    if (trip.serviceType !== 'delivery') {
+      throw new BadRequestException('Cette action est réservée aux livraisons');
+    }
+    if (trip.status !== TripStatus.completed) {
+      throw new BadRequestException('La livraison doit être terminée pour être confirmée');
+    }
+    if (trip.deliveryConfirmedAt) {
+      throw new ConflictException('Cette livraison a déjà été confirmée');
+    }
+    await this.prisma.trip.update({
+      where: { id: tripId },
+      data: { deliveryConfirmedAt: new Date() },
+    });
+    this.broadcast.emitToTrip(tripId, WsEvents.DeliveryClientConfirmed, { tripId });
+    this.broadcast.emitToUser(trip.driverId ?? '', WsEvents.DeliveryClientConfirmed, { tripId });
+    this.logger.log(`Delivery ${tripId} confirmed by client ${userId}`);
+    return { acknowledged: true };
+  }
+
+  async reportDeliveryIssue(tripId: string, userId: string, reason: string) {
+    const trip = await this.getTrip(tripId);
+    if (trip.clientId !== userId) {
+      throw new ForbiddenException("Ce n'est pas votre course");
+    }
+    if (trip.serviceType !== 'delivery') {
+      throw new BadRequestException('Cette action est réservée aux livraisons');
+    }
+    await this.prisma.trip.update({
+      where: { id: tripId },
+      data: { deliveryIssueReported: reason },
+    });
+    this.logger.log(`Delivery issue reported for trip ${tripId}: ${reason}`);
+    return { acknowledged: true };
   }
 }
