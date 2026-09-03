@@ -15,6 +15,7 @@ import { DispatchModule } from '../dispatch/dispatch.module';
         connection: {
           host: config.get<string>('REDIS_HOST', 'localhost'),
           port: config.get<number>('REDIS_PORT', 6379),
+          username: config.get<string>('REDIS_USERNAME') || 'default',
           password: config.get<string>('REDIS_PASSWORD') || undefined,
         },
         prefix: 'bull:telima:',

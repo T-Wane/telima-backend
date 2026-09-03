@@ -64,6 +64,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         host: this.config.get<string>('REDIS_HOST', 'localhost'),
         port: this.config.get<number>('REDIS_PORT', 6379),
       },
+      username: this.config.get<string>('REDIS_USERNAME') || 'default',
       password: this.config.get<string>('REDIS_PASSWORD') || undefined,
     };
     const pubClient = createClient(redisOptions);
