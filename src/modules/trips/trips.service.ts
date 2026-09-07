@@ -544,7 +544,11 @@ export class TripsService {
       data: { deliveryConfirmedAt: new Date() },
     });
     this.broadcast.emitToTrip(tripId, WsEvents.DeliveryClientConfirmed, { tripId });
-    this.broadcast.emitToUser(trip.driverId ?? '', WsEvents.DeliveryClientConfirmed, { tripId });
+    // `trip.driverId` est l'id Driver (pas l'id User) : le chauffeur est adresse via
+    // sa driver room (comme le dispatch), pas via emitToUser qui attend un userId.
+    if (trip.driverId) {
+      this.broadcast.emitToDriver(trip.driverId, WsEvents.DeliveryClientConfirmed, { tripId });
+    }
     this.logger.log(`Delivery ${tripId} confirmed by client ${userId}`);
     return { acknowledged: true };
   }

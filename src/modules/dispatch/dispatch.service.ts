@@ -274,6 +274,15 @@ export class DispatchService {
     });
   }
 
+  /**
+   * Abandonne une course encore `pending` : emet DispatchFailed, ce qui la passe en
+   * `cancelled_auto` (TripsService.handleDispatchFailed) et notifie le client par WS.
+   * Public pour DispatchRecoveryService (balayage des courses orphelines au demarrage).
+   */
+  failTrip(tripId: string, reason: string): void {
+    this.emitDispatchFailed(tripId, reason);
+  }
+
   private emitDispatchFailed(tripId: string, reason: string): void {
     const payload: DispatchFailedEvent = { tripId, reason };
     this.eventEmitter.emit(DomainEvents.DispatchFailed, payload);
