@@ -56,8 +56,16 @@ import { IdempotencyInterceptor } from './common/interceptors/idempotency.interc
       }),
     }),
     ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60000, limit: 100 },
-      { name: 'auth', ttl: 60000, limit: 10 },
+      {
+        name: 'default',
+        ttl: 60000,
+        limit: Number(process.env.THROTTLE_DEFAULT_LIMIT ?? 100),
+      },
+      {
+        name: 'auth',
+        ttl: 60000,
+        limit: Number(process.env.THROTTLE_AUTH_LIMIT ?? 10),
+      },
     ]),
     PrismaModule,
     RedisModule,
