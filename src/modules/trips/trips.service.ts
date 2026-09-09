@@ -568,4 +568,57 @@ export class TripsService {
     this.logger.log(`Delivery issue reported for trip ${tripId}: ${reason}`);
     return { acknowledged: true };
   }
+
+  /**
+   * Alerte d'urgence (SOS) declenchee pendant une course par le client OU le
+   * chauffeur. Diffuse un evenement `admin:alert` au dashboard (room admin) avec
+   * la position transmise et le contexte de la course.
+   */
+  async raiseSos(
+    tripId: string,
+    userId: string,
+    role: string,
+    location?: { lat?: number; lng?: number },
+    message?: string,
+  ) {
+    const trip = await this.getTrip(tripId);
+    const driver =
+      role === 'driver' ? await this.tripRepo.findDriverByUserId(userId) : null;
+    const isParty =
+      trip.clientId === userId || (driver && trip.driverId === driver.id);
+    if (!isParty) {
+      throw new ForbiddenException("Ce n'est pas votre course");
+    }
+
+    const raisedBy = trip.clientId === userId ? 'client' : 'driver';
+    const clientName = `${trip.client?.firstName ?? ''} ${trip.client?.lastName ?? ''}`.trim();
+    const driverName =
+      `${trip.driver?.user?.firstName ?? ''} ${trip.driver?.user?.lastName ?? ''}`.trim();
+
+    const payload = {
+      tripId,
+      raisedBy,
+      raisedAt: new Date().toISOString(),
+      status: trip.status,
+      serviceType: trip.serviceType,
+      lat: location?.lat ?? null,
+      lng: location?.lng ?? null,
+      message: message ?? null,
+      client: { name: clientName || null, phone: trip.client?.phone ?? null },
+      driver: {
+        name: driverName || null,
+        phone: trip.driver?.user?.phone ?? null,
+        plate: trip.driver?.vehicle?.plateNumber ?? null,
+      },
+      pickupAddress: trip.pickupAddress,
+      dropoffAddress: trip.dropoffAddress,
+    };
+
+    this.broadcast.emitToAdmin('admin:alert', payload);
+    this.logger.warn(
+      `🚨 SOS trip ${tripId} par ${raisedBy} (${clientName || driverName}) — ` +
+        `pos=${payload.lat},${payload.lng} statut=${trip.status}`,
+    );
+    return { acknowledged: true };
+  }
 }
