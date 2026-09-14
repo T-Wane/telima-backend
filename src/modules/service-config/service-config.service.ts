@@ -16,8 +16,11 @@ export interface ServicePricingConfig {
 const DEFAULT_CONFIG: ServiceDispatchConfig = {
   dispatchRadiusMeters: 5000,
   maxDispatchAttempts: 3,
-  lockTtlSeconds: 30,
-  dispatchTimeoutMs: 15000,
+  // Le chauffeur peut etre reveille par une notification push (appli fermee) :
+  // il lui faut le temps de deverrouiller le telephone, ouvrir l'appli et
+  // repondre. 15s etait trop court -> la demande expirait avant l'ouverture.
+  lockTtlSeconds: 75,
+  dispatchTimeoutMs: 60000,
 };
 
 const DEFAULT_PRICING_CONFIG: ServicePricingConfig = {

@@ -23,6 +23,14 @@ export class FcmPushProvider implements PushProvider, OnModuleInit {
       return;
     }
     try {
+      // onModuleInit peut etre appele plus d'une fois (plusieurs instances du
+      // provider selon le graphe de modules) : on reutilise l'app par defaut si
+      // elle existe deja plutot que de relever "default app already exists".
+      if (admin.apps.length > 0 && admin.apps[0]) {
+        this.app = admin.apps[0];
+        this.logger.log('Firebase Admin SDK reused (already initialized)');
+        return;
+      }
       const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
       this.app = admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),

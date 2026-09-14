@@ -279,6 +279,12 @@ export class TripsService {
         driverLat,
         driverLng,
         estimatedPrice: trip.estimatedPrice ? Number(trip.estimatedPrice) : undefined,
+        pickupAddress: trip.pickupAddress,
+        deliveryAddress: trip.dropoffAddress,
+        dropoffAddress: trip.dropoffAddress,
+        recipientName: trip.deliveryDetails?.recipientName,
+        recipientPhone: trip.deliveryDetails?.recipientPhone,
+        packageType: trip.deliveryDetails?.parcelDescription,
       };
       // Émettre vers les deux canaux : user room (le client est toujours dans sa
       // user room à la connexion) et trip room (le client joint la trip room dès
@@ -355,17 +361,33 @@ export class TripsService {
   private broadcastStatusEvent(trip: any, status: TripStatus, cancelReason?: string): void {
     const wsEvent = getWsEventForService(trip.serviceType, status);
     if (wsEvent) {
+      // Qui est a l'origine de l'annulation ? Permet au client d'afficher un
+      // message clair ("Le chauffeur a annule...") et de proposer une relance.
+      let cancelledBy: 'driver' | 'client' | 'system' | undefined;
+      if (status === TripStatus.cancelled_by_driver) cancelledBy = 'driver';
+      else if (status === TripStatus.cancelled_by_client) cancelledBy = 'client';
+      else if (status === TripStatus.cancelled_auto) cancelledBy = 'system';
       const payload = {
         tripId: trip.id,
         status,
+        cancelledBy,
         pickupAddress: trip.pickupAddress,
         dropoffAddress: trip.dropoffAddress,
+        // Alias attendu par l'app client (DeliveryProvider) pour le flux livraison.
+        deliveryAddress: trip.dropoffAddress,
         estimatedPrice: trip.estimatedPrice ? Number(trip.estimatedPrice) : undefined,
         finalPrice: trip.finalPrice ? Number(trip.finalPrice) : undefined,
         driverName:
           `${trip.driver?.user?.firstName ?? ''} ${trip.driver?.user?.lastName ?? ''}`.trim() ||
           undefined,
         driverPhone: trip.driver?.user?.phone,
+        driverPhoto: trip.driver?.photoUrl,
+        rating: trip.driver?.rating ? Number(trip.driver.rating) : undefined,
+        vehiclePlate: trip.driver?.vehicle?.plateNumber,
+        vehicleType: trip.driver?.vehicle?.vehicleType?.name,
+        recipientName: trip.deliveryDetails?.recipientName,
+        recipientPhone: trip.deliveryDetails?.recipientPhone,
+        packageType: trip.deliveryDetails?.parcelDescription,
         reason: cancelReason ?? trip.cancelReason,
       };
       this.broadcast.emitToTrip(trip.id, wsEvent, payload);

@@ -25,7 +25,12 @@ describe('DispatchRecoveryService — reprise des courses orphelines au boot', (
       releaseLocksForTrip: jest.fn().mockResolvedValue(undefined),
       attemptDispatch: jest.fn().mockResolvedValue(undefined),
     };
-    service = new DispatchRecoveryService(prisma as unknown as never, dispatch as unknown as never);
+    const broadcast = { emitToTrip: jest.fn() };
+    service = new DispatchRecoveryService(
+      prisma as unknown as never,
+      dispatch as unknown as never,
+      broadcast as unknown as never,
+    );
   });
 
   it('ne fait rien quand aucune course pending', async () => {
