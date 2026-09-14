@@ -10,6 +10,7 @@ import type {
   TripCancelledEvent,
   TripArrivedEvent,
   ChatMessageSentEvent,
+  DriverNotifiedEvent,
 } from '../domain-events/events/domain-events';
 
 // Notification handler : ecoute les domain events et envoie des notifications push
@@ -23,6 +24,30 @@ export class NotificationHandler {
     private readonly prisma: PrismaService,
     @Inject(PUSH_PROVIDER) private readonly pushProvider: PushProvider,
   ) {}
+
+  // Nouvelle demande de course adressee a un chauffeur : push haute priorite pour
+  // le reveiller si l'appli est fermee / l'ecran eteint.
+  @OnEvent(DomainEvents.DriverNotified)
+  async handleDriverNotified(event: DriverNotifiedEvent): Promise<void> {
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: event.driverId },
+      select: { userId: true },
+    });
+    if (!driver) return;
+    const isDelivery = event.serviceType === 'delivery';
+    await this.sendToUser(driver.userId, {
+      title: isDelivery ? 'Nouvelle livraison' : 'Nouvelle course',
+      body: event.pickupAddress
+        ? `Prise en charge : ${event.pickupAddress}`
+        : 'Une demande vous attend. Ouvrez l\'application pour repondre.',
+      data: {
+        tripId: event.tripId,
+        type: 'trip_new_request',
+        serviceType: event.serviceType,
+      },
+      priority: 'high',
+    });
+  }
 
   @OnEvent(DomainEvents.TripAccepted)
   async handleTripAccepted(event: TripAcceptedEvent): Promise<void> {

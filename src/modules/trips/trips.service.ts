@@ -279,6 +279,12 @@ export class TripsService {
         driverLat,
         driverLng,
         estimatedPrice: trip.estimatedPrice ? Number(trip.estimatedPrice) : undefined,
+        pickupAddress: trip.pickupAddress,
+        deliveryAddress: trip.dropoffAddress,
+        dropoffAddress: trip.dropoffAddress,
+        recipientName: trip.deliveryDetails?.recipientName,
+        recipientPhone: trip.deliveryDetails?.recipientPhone,
+        packageType: trip.deliveryDetails?.parcelDescription,
       };
       // Émettre vers les deux canaux : user room (le client est toujours dans sa
       // user room à la connexion) et trip room (le client joint la trip room dès
@@ -355,17 +361,33 @@ export class TripsService {
   private broadcastStatusEvent(trip: any, status: TripStatus, cancelReason?: string): void {
     const wsEvent = getWsEventForService(trip.serviceType, status);
     if (wsEvent) {
+      // Qui est a l'origine de l'annulation ? Permet au client d'afficher un
+      // message clair ("Le chauffeur a annule...") et de proposer une relance.
+      let cancelledBy: 'driver' | 'client' | 'system' | undefined;
+      if (status === TripStatus.cancelled_by_driver) cancelledBy = 'driver';
+      else if (status === TripStatus.cancelled_by_client) cancelledBy = 'client';
+      else if (status === TripStatus.cancelled_auto) cancelledBy = 'system';
       const payload = {
         tripId: trip.id,
         status,
+        cancelledBy,
         pickupAddress: trip.pickupAddress,
         dropoffAddress: trip.dropoffAddress,
+        // Alias attendu par l'app client (DeliveryProvider) pour le flux livraison.
+        deliveryAddress: trip.dropoffAddress,
         estimatedPrice: trip.estimatedPrice ? Number(trip.estimatedPrice) : undefined,
         finalPrice: trip.finalPrice ? Number(trip.finalPrice) : undefined,
         driverName:
           `${trip.driver?.user?.firstName ?? ''} ${trip.driver?.user?.lastName ?? ''}`.trim() ||
           undefined,
         driverPhone: trip.driver?.user?.phone,
+        driverPhoto: trip.driver?.photoUrl,
+        rating: trip.driver?.rating ? Number(trip.driver.rating) : undefined,
+        vehiclePlate: trip.driver?.vehicle?.plateNumber,
+        vehicleType: trip.driver?.vehicle?.vehicleType?.name,
+        recipientName: trip.deliveryDetails?.recipientName,
+        recipientPhone: trip.deliveryDetails?.recipientPhone,
+        packageType: trip.deliveryDetails?.parcelDescription,
         reason: cancelReason ?? trip.cancelReason,
       };
       this.broadcast.emitToTrip(trip.id, wsEvent, payload);
@@ -544,7 +566,11 @@ export class TripsService {
       data: { deliveryConfirmedAt: new Date() },
     });
     this.broadcast.emitToTrip(tripId, WsEvents.DeliveryClientConfirmed, { tripId });
-    this.broadcast.emitToUser(trip.driverId ?? '', WsEvents.DeliveryClientConfirmed, { tripId });
+    // `trip.driverId` est l'id Driver (pas l'id User) : le chauffeur est adresse via
+    // sa driver room (comme le dispatch), pas via emitToUser qui attend un userId.
+    if (trip.driverId) {
+      this.broadcast.emitToDriver(trip.driverId, WsEvents.DeliveryClientConfirmed, { tripId });
+    }
     this.logger.log(`Delivery ${tripId} confirmed by client ${userId}`);
     return { acknowledged: true };
   }
@@ -562,6 +588,59 @@ export class TripsService {
       data: { deliveryIssueReported: reason },
     });
     this.logger.log(`Delivery issue reported for trip ${tripId}: ${reason}`);
+    return { acknowledged: true };
+  }
+
+  /**
+   * Alerte d'urgence (SOS) declenchee pendant une course par le client OU le
+   * chauffeur. Diffuse un evenement `admin:alert` au dashboard (room admin) avec
+   * la position transmise et le contexte de la course.
+   */
+  async raiseSos(
+    tripId: string,
+    userId: string,
+    role: string,
+    location?: { lat?: number; lng?: number },
+    message?: string,
+  ) {
+    const trip = await this.getTrip(tripId);
+    const driver =
+      role === 'driver' ? await this.tripRepo.findDriverByUserId(userId) : null;
+    const isParty =
+      trip.clientId === userId || (driver && trip.driverId === driver.id);
+    if (!isParty) {
+      throw new ForbiddenException("Ce n'est pas votre course");
+    }
+
+    const raisedBy = trip.clientId === userId ? 'client' : 'driver';
+    const clientName = `${trip.client?.firstName ?? ''} ${trip.client?.lastName ?? ''}`.trim();
+    const driverName =
+      `${trip.driver?.user?.firstName ?? ''} ${trip.driver?.user?.lastName ?? ''}`.trim();
+
+    const payload = {
+      tripId,
+      raisedBy,
+      raisedAt: new Date().toISOString(),
+      status: trip.status,
+      serviceType: trip.serviceType,
+      lat: location?.lat ?? null,
+      lng: location?.lng ?? null,
+      message: message ?? null,
+      client: { name: clientName || null, phone: trip.client?.phone ?? null },
+      driver: {
+        name: driverName || null,
+        phone: trip.driver?.user?.phone ?? null,
+        plate: trip.driver?.vehicle?.plateNumber ?? null,
+      },
+      pickupAddress: trip.pickupAddress,
+      dropoffAddress: trip.dropoffAddress,
+    };
+
+    this.broadcast.emitToAdmin('admin:alert', payload);
+    this.logger.warn(
+      `🚨 SOS trip ${tripId} par ${raisedBy} (${clientName || driverName}) — ` +
+        `pos=${payload.lat},${payload.lng} statut=${trip.status}`,
+    );
     return { acknowledged: true };
   }
 }

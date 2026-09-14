@@ -144,9 +144,31 @@ export class DriversService {
     });
   }
 
-  findAll(status?: DriverStatus) {
+  findAll(status?: string) {
+    // Le dashboard filtre par 4 categories qui ne correspondent pas toutes a une
+    // valeur de l'enum DriverStatus : "inactive" / "active" sont derivees de
+    // is_online. Sans cette traduction, Prisma levait (enum invalide) -> 500.
+    const realStatuses: string[] = [
+      'pending_validation',
+      'validated',
+      'suspended',
+      'rejected',
+    ];
+    let where: Record<string, unknown> | undefined;
+    if (!status) {
+      where = undefined;
+    } else if (status === 'inactive') {
+      where = { status: 'validated', isOnline: false };
+    } else if (status === 'active') {
+      where = { status: 'validated', isOnline: true };
+    } else if (realStatuses.includes(status)) {
+      where = { status };
+    } else {
+      // Valeur inconnue : liste vide plutot qu'une 500.
+      return Promise.resolve([]);
+    }
     return this.prisma.driver.findMany({
-      where: status ? { status } : undefined,
+      where,
       include: { vehicle: { include: { vehicleType: true } }, user: true },
       orderBy: { createdAt: 'desc' },
     });

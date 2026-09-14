@@ -1,3 +1,5 @@
+import './instrument';
+
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe, VersioningType, Logger } from '@nestjs/common';
@@ -80,6 +82,11 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('docs', app, document);
   }
+
+  // Arret propre : sur SIGTERM/SIGINT (redeploy Render, `docker stop`), Nest ferme le
+  // serveur HTTP (draine les requetes en vol) puis appelle les hooks onModuleDestroy /
+  // onApplicationShutdown (deconnexion Prisma, fermeture BullMQ / Redis adapter).
+  app.enableShutdownHooks();
 
   const port = configService.get<number>('PORT') ?? 3000;
   await app.listen(port);

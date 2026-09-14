@@ -13,6 +13,7 @@ import { UpdateTripStatusDto } from './dto/update-trip-status.dto';
 import { CreateRatingDto } from './dto/create-rating.dto';
 import { PaymentReceivedDto } from './dto/payment-received.dto';
 import { DeclineTripDto } from './dto/decline-trip.dto';
+import { SosDto } from './dto/sos.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Idempotent } from '../../common/interceptors/idempotency.interceptor';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
@@ -179,5 +180,25 @@ export class TripsController {
     @Body('reason') reason: string,
   ) {
     return this.tripsService.reportDeliveryIssue(id, user.id, reason);
+  }
+
+  @Post(':id/sos')
+  @ApiOperation({
+    summary: "Declencher une alerte d'urgence (client ou chauffeur) — notifie le dashboard admin",
+  })
+  @ApiResponse({ status: 201, description: 'Alerte diffusee a l\'equipe' })
+  @ApiResponse({ status: 403, description: "Ce n'est pas votre course" })
+  raiseSos(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SosDto,
+  ) {
+    return this.tripsService.raiseSos(
+      id,
+      user.id,
+      user.role,
+      { lat: dto.lat, lng: dto.lng },
+      dto.message,
+    );
   }
 }

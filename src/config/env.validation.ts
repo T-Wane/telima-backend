@@ -98,6 +98,30 @@ class EnvironmentVariables {
   @IsOptional()
   SENDTEXT_SENDER_NAME?: string;
 
+  @IsIn(['legacy', 'julakai'])
+  @IsOptional()
+  OTP_PROVIDER?: string;
+
+  @IsString()
+  @IsOptional()
+  JULAKAI_API_BASE?: string;
+
+  @IsString()
+  @IsOptional()
+  JULAKAI_CLIENT_APP_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  JULAKAI_CLIENT_APP_SECRET?: string;
+
+  @IsString()
+  @IsOptional()
+  JULAKAI_DRIVER_APP_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  JULAKAI_DRIVER_APP_SECRET?: string;
+
   @IsIn(['local', 's3'])
   @IsOptional()
   STORAGE_PROVIDER?: string;

@@ -27,6 +27,7 @@ import { ChargingStationsModule } from './modules/charging-stations/charging-sta
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { SentryGlobalFilter } from '@sentry/nestjs/setup';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
@@ -56,8 +57,16 @@ import { IdempotencyInterceptor } from './common/interceptors/idempotency.interc
       }),
     }),
     ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60000, limit: 100 },
-      { name: 'auth', ttl: 60000, limit: 10 },
+      {
+        name: 'default',
+        ttl: 60000,
+        limit: Number(process.env.THROTTLE_DEFAULT_LIMIT ?? 100),
+      },
+      {
+        name: 'auth',
+        ttl: 60000,
+        limit: Number(process.env.THROTTLE_AUTH_LIMIT ?? 10),
+      },
     ]),
     PrismaModule,
     RedisModule,
@@ -84,6 +93,10 @@ import { IdempotencyInterceptor } from './common/interceptors/idempotency.interc
     HealthModule,
   ],
   providers: [
+    // Doit etre enregistre AVANT HttpExceptionFilter (Sentry a besoin de voir
+    // l'exception en premier pour la rapporter, puis delegue le traitement
+    // normal ; inactif tant que SENTRY_DSN n'est pas configure, cf. instrument.ts).
+    { provide: APP_FILTER, useClass: SentryGlobalFilter },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },

@@ -57,6 +57,14 @@ export interface DispatchFailedEvent {
   reason: string;
 }
 
+export interface DriverNotifiedEvent {
+  tripId: string;
+  driverId: string;
+  serviceType: string;
+  pickupAddress?: string;
+  estimatedPrice?: number;
+}
+
 export interface PaymentSucceededEvent {
   transactionId: string;
   driverId: string;

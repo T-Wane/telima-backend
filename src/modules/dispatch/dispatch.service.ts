@@ -7,7 +7,7 @@ import { BroadcastService } from '../events/services/broadcast.service';
 import { QueueService } from '../queue/queue.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ServiceConfigService } from '../service-config/service-config.service';
-import { DispatchLockKey } from './dispatch.constants';
+import { DispatchLockKey, DispatchTimeoutJobKey, DispatchRoundsKey } from './dispatch.constants';
 import { DomainEvents } from '../domain-events/domain-events.constants';
 import type {
   DriverAssignedEvent,
@@ -37,6 +37,10 @@ export class DispatchService {
     vehicleTypeId?: string,
   ): Promise<void> {
     this.logger.log(`Starting dispatch for trip ${tripId} (service: ${serviceType}, vehicleType: ${vehicleTypeId ?? 'any'})`);
+
+    const roundsKey = DispatchRoundsKey(tripId);
+    await this.redis.incr(roundsKey);
+    await this.redis.expire(roundsKey, 3600);
 
     const config = await this.serviceConfig.getDispatchConfig(serviceType);
 
@@ -98,11 +102,22 @@ export class DispatchService {
         continue;
       }
 
-      await this.prisma.dispatchAttempt.create({
-        data: {
+      // upsert (pas create) : si ce chauffeur a deja une tentative pour cette
+      // course (ex. il vient de refuser/timeout et se retrouve reselectionne
+      // au retry, seul candidat disponible), un create() plante sur la
+      // contrainte unique (trip_id, driver_id) -> 500 silencieux qui casse
+      // tout le cycle de retry sans jamais notifier personne d'autre.
+      await this.prisma.dispatchAttempt.upsert({
+        where: { tripId_driverId: { tripId, driverId: driver.driverId } },
+        create: {
           tripId,
           driverId: driver.driverId,
           status: 'driver_notified',
+        },
+        update: {
+          status: 'driver_notified',
+          notifiedAt: new Date(),
+          respondedAt: null,
         },
       });
 
@@ -129,13 +144,33 @@ export class DispatchService {
         parcelDescription: trip?.deliveryDetails?.parcelDescription,
       });
 
-      await this.queue.scheduleDispatchTimeout(
+      // Un chauffeur reselectionne au retry (upsert ci-dessus) peut avoir un
+      // ancien job de timeout encore en file (jamais annule si sa 1ere
+      // tentative a ete traitee autrement, ex. refus explicite). On l'annule
+      // avant d'en programmer un nouveau pour eviter les doublons.
+      await this.cancelTimeoutJob(tripId, driver.driverId);
+      const timeoutJobId = await this.queue.scheduleDispatchTimeout(
         {
           tripId,
           driverId: driver.driverId,
         },
         config.dispatchTimeoutMs,
       );
+      await this.redis.set(
+        DispatchTimeoutJobKey(tripId, driver.driverId),
+        timeoutJobId,
+        'EX',
+        Math.ceil(config.dispatchTimeoutMs / 1000) + 30,
+      );
+
+      // Notification push (appli fermee / ecran eteint) en plus du WS.
+      this.eventEmitter.emit(DomainEvents.DriverNotified, {
+        tripId,
+        driverId: driver.driverId,
+        serviceType,
+        pickupAddress: trip?.pickupAddress ?? undefined,
+        estimatedPrice,
+      });
 
       notified.push(driver);
       this.logger.log(`Notified driver ${driver.driverId} for trip ${tripId}`);
@@ -156,6 +191,7 @@ export class DispatchService {
     });
 
     await this.redis.del(DispatchLockKey(driverId));
+    await this.redis.del(DispatchTimeoutJobKey(tripId, driverId));
     await this.checkAndRetryDispatch(tripId);
   }
 
@@ -190,13 +226,14 @@ export class DispatchService {
     });
 
     if (remainingAttempts === 0) {
-      const totalAttempts = await this.prisma.dispatchAttempt.count({
-        where: { tripId },
-      });
+      // Nombre de vagues de notification deja tentees (voir DispatchRoundsKey :
+      // compte les rounds, pas les lignes DispatchAttempt, pour que le seuil
+      // soit atteint meme quand le meme chauffeur est relance a chaque fois).
+      const roundsSoFar = Number(await this.redis.get(DispatchRoundsKey(tripId))) || 0;
 
       const config = await this.serviceConfig.getDispatchConfig(trip.serviceType);
 
-      if (totalAttempts >= config.maxDispatchAttempts) {
+      if (roundsSoFar >= config.maxDispatchAttempts) {
         this.emitDispatchFailed(tripId, 'max_attempts_reached');
         return;
       }
@@ -227,6 +264,7 @@ export class DispatchService {
       where: { tripId, driverId, status: 'driver_notified' },
       data: { status: 'driver_accepted', respondedAt: new Date() },
     });
+    await this.cancelTimeoutJob(tripId, driverId);
 
     const otherLocks = await this.prisma.dispatchAttempt.findMany({
       where: { tripId, status: 'driver_notified', NOT: { driverId } },
@@ -235,6 +273,7 @@ export class DispatchService {
 
     for (const attempt of otherLocks) {
       await this.redis.del(DispatchLockKey(attempt.driverId));
+      await this.cancelTimeoutJob(tripId, attempt.driverId);
       await this.prisma.dispatchAttempt.updateMany({
         where: { tripId, driverId: attempt.driverId, status: 'driver_notified' },
         data: { status: 'driver_declined', respondedAt: new Date() },
@@ -242,6 +281,7 @@ export class DispatchService {
     }
 
     await this.redis.del(lockKey);
+    await this.redis.del(DispatchRoundsKey(tripId));
 
     const payload: DriverAssignedEvent = { tripId, driverId };
     this.eventEmitter.emit(DomainEvents.DriverAssigned, payload);
@@ -255,6 +295,7 @@ export class DispatchService {
     });
 
     await this.redis.del(DispatchLockKey(driverId));
+    await this.cancelTimeoutJob(tripId, driverId);
     this.logger.log(`Driver ${driverId} declined trip ${tripId}`);
   }
 
@@ -266,6 +307,7 @@ export class DispatchService {
 
     for (const attempt of attempts) {
       await this.redis.del(DispatchLockKey(attempt.driverId));
+      await this.cancelTimeoutJob(tripId, attempt.driverId);
     }
 
     await this.prisma.dispatchAttempt.updateMany({
@@ -274,9 +316,149 @@ export class DispatchService {
     });
   }
 
+  /**
+   * Abandonne une course encore `pending` : emet DispatchFailed, ce qui la passe en
+   * `cancelled_auto` (TripsService.handleDispatchFailed) et notifie le client par WS.
+   * Public pour DispatchRecoveryService (balayage des courses orphelines au demarrage).
+   */
+  failTrip(tripId: string, reason: string): void {
+    this.emitDispatchFailed(tripId, reason);
+  }
+
+  /**
+   * Annule le job Bull de timeout programme pour ce couple (trip, driver), s'il
+   * existe encore. Indispensable des qu'une tentative se termine autrement que
+   * par timeout (acceptation, refus, invalidation) : sans ca, le job reste en
+   * file et se declenche plus tard tout seul, relancant une notification /
+   * un cycle de retry pour une course deja avancee (cf. bug notifications en
+   * boucle constate en test le 2026-09-14).
+   */
+  private async cancelTimeoutJob(tripId: string, driverId: string): Promise<void> {
+    const key = DispatchTimeoutJobKey(tripId, driverId);
+    const jobId = await this.redis.get(key);
+    if (jobId) {
+      await this.queue.cancelDispatchTimeout(jobId);
+      await this.redis.del(key);
+    }
+  }
+
   private emitDispatchFailed(tripId: string, reason: string): void {
+    void this.redis.del(DispatchRoundsKey(tripId));
     const payload: DispatchFailedEvent = { tripId, reason };
     this.eventEmitter.emit(DomainEvents.DispatchFailed, payload);
     this.logger.warn(`Dispatch failed for trip ${tripId}: ${reason}`);
+  }
+
+  /**
+   * Demande de course actuellement adressee a ce chauffeur mais pas encore
+   * traitee (dispatchAttempt `driver_notified` + course encore `pending`).
+   * Sert au rattrapage : le chauffeur ouvre l'appli via la notification push
+   * alors que l'evenement WS `trip:new_request` a ete perdu (socket coupe).
+   * Retourne le meme payload que `trip:new_request`, ou null.
+   */
+  async getPendingRequestForDriver(userId: string): Promise<Record<string, unknown> | null> {
+    const driver = await this.prisma.driver.findFirst({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!driver) return null;
+
+    // Course encore `pending` pour laquelle ce chauffeur a ete sollicite (meme si
+    // la tentative a expire entre-temps : il ouvre l'appli via la push apres le
+    // timeout). On exclut les courses ou un AUTRE chauffeur a deja accepte.
+    const attempt = await this.prisma.dispatchAttempt.findFirst({
+      where: {
+        driverId: driver.id,
+        status: { in: ['driver_notified', 'timed_out'] },
+        trip: { status: 'pending', driverId: null },
+      },
+      orderBy: { notifiedAt: 'desc' },
+      include: {
+        trip: {
+          include: {
+            client: { select: { firstName: true, lastName: true, phone: true } },
+            vehicleType: { select: { name: true, commissionPercentage: true } },
+            deliveryDetails: {
+              select: {
+                recipientName: true,
+                recipientPhone: true,
+                parcelDescription: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!attempt?.trip) return null;
+    const trip = attempt.trip;
+
+    // "Re-arme" la demande pour ce chauffeur : sans ca, l'acceptation echouerait
+    // ("course non adressee") car la tentative avait expire et le verrou saute.
+    const anotherAccepted = await this.prisma.dispatchAttempt.findFirst({
+      where: { tripId: trip.id, status: 'driver_accepted', NOT: { driverId: driver.id } },
+      select: { id: true },
+    });
+    if (anotherAccepted) return null;
+    try {
+      await this.prisma.dispatchAttempt.update({
+        where: { id: attempt.id },
+        data: { status: 'driver_notified', respondedAt: null },
+      });
+      await this.redis.set(
+        DispatchLockKey(driver.id),
+        trip.id,
+        'EX',
+        75,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Re-arm dispatch attempt failed for driver ${driver.id} trip ${trip.id}: ${(err as Error).message}`,
+      );
+    }
+
+    let coords: {
+      plat?: number;
+      plng?: number;
+      dlat?: number;
+      dlng?: number;
+    } = {};
+    try {
+      const rows = await this.prisma.$queryRaw<
+        { plat: number; plng: number; dlat: number; dlng: number }[]
+      >`
+        SELECT
+          ST_Y(pickup_location)::float AS plat,
+          ST_X(pickup_location)::float AS plng,
+          ST_Y(dropoff_location)::float AS dlat,
+          ST_X(dropoff_location)::float AS dlng
+        FROM trips WHERE id = ${trip.id}
+      `;
+      coords = rows[0] ?? {};
+    } catch (_) {}
+
+    const estimatedPrice = Number(trip.estimatedPrice ?? 0);
+    const commissionPct = Number(trip.vehicleType.commissionPercentage ?? 0);
+    const commission = Math.round((estimatedPrice * commissionPct) / 100);
+
+    return {
+      tripId: trip.id,
+      serviceType: trip.serviceType,
+      pickup:
+        coords.plat != null ? { lat: coords.plat, lng: coords.plng } : undefined,
+      dropoff:
+        coords.dlat != null ? { lat: coords.dlat, lng: coords.dlng } : undefined,
+      pickupAddress: trip.pickupAddress,
+      dropoffAddress: trip.dropoffAddress,
+      estimatedPrice,
+      commission,
+      tripDistanceMeters: Number(trip.distanceMeters ?? 0),
+      durationSeconds: Number(trip.durationSeconds ?? 0),
+      vehicleTypeName: trip.vehicleType.name,
+      clientName: `${trip.client.firstName ?? ''} ${trip.client.lastName ?? ''}`.trim(),
+      clientPhone: trip.client.phone,
+      recipientName: trip.deliveryDetails?.recipientName,
+      recipientPhone: trip.deliveryDetails?.recipientPhone,
+      parcelDescription: trip.deliveryDetails?.parcelDescription,
+    };
   }
 }

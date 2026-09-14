@@ -55,6 +55,17 @@ export class GeolocationService {
           ST_SetSRID(ST_MakePoint(${point.lng}, ${point.lat}), 4326),
           ${radiusMeters}
         )
+        -- Exclut un chauffeur deja engage sur une course : sans ce garde-fou il
+        -- pouvait recevoir un 2e dispatch et se retrouver avec deux courses.
+        -- Backstop : une course "active" de plus de 25 min est forcement
+        -- abandonnee dans ce contexte (courses urbaines) et ne doit plus bloquer
+        -- le chauffeur pour de nouveaux dispatch.
+        AND NOT EXISTS (
+          SELECT 1 FROM trips t
+          WHERE t.driver_id = d.id
+            AND t.status IN ('accepted', 'driver_arriving', 'in_progress')
+            AND t.created_at > now() - interval '25 minutes'
+        )
         ${serviceType ? Prisma.sql`AND v.vehicle_type_id IN (SELECT id FROM vehicle_types WHERE service_type = ${serviceType}::\"ServiceType\" AND is_active = true)` : Prisma.empty}
         ${vehicleTypeId ? Prisma.sql`AND v.vehicle_type_id = ${vehicleTypeId}` : Prisma.empty}
       ORDER BY "distanceMeters" ASC

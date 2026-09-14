@@ -9,3 +9,9 @@ uploads/
 generated/
 .vscode
 .idea
+
+# Local dev override (port conflict workaround)
+docker-compose.override.yml
+
+# Firebase Admin SDK key (secret)
+fcm-service-account.json

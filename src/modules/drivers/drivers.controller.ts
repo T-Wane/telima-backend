@@ -19,7 +19,7 @@ import {
   ApiConsumes,
   ApiBody,
 } from '@nestjs/swagger';
-import { DriverStatus, UserRole } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 import { DriversService } from './drivers.service';
 import { CommissionsService } from '../commissions/commissions.service';
 import { RegisterDriverDto } from './dto/register-driver.dto';
@@ -122,7 +122,7 @@ export class DriversController {
   @Roles(UserRole.admin)
   @Get()
   @ApiOperation({ summary: 'Lister tous les chauffeurs (admin)' })
-  findAll(@Query('status') status?: DriverStatus) {
+  findAll(@Query('status') status?: string) {
     return this.driversService.findAll(status);
   }
 

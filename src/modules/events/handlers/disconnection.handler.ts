@@ -3,6 +3,13 @@ import { Socket } from 'socket.io';
 import { RoomsService } from '../services/rooms.service';
 import { PresenceService } from '../services/presence.service';
 
+// Deconnexion d'un chauffeur : on lui laisse un delai de grace avant de le
+// marquer hors ligne (retire du dispatch). Cela absorbe les micro-coupures
+// reseau et le passage en arriere-plan.
+//
+// IMPORTANT : on ne notifie PLUS le client de l'etat de connexion du chauffeur.
+// Le client ne voit un changement que si le chauffeur ANNULE explicitement la
+// course (evenement ride:cancelled / delivery:cancelled emis par TripsService).
 const GRACE_PERIOD_MS = 60_000;
 
 @Injectable()
@@ -23,7 +30,9 @@ export class DisconnectionHandler {
 
     if (driverId) {
       this.scheduleGracePeriod(driverId);
-      this.logger.log(`Socket ${client.id} disconnected: driver=${driverId}, grace period ${GRACE_PERIOD_MS / 1000}s`);
+      this.logger.log(
+        `Socket ${client.id} disconnected: driver=${driverId}, grace ${GRACE_PERIOD_MS / 1000}s`,
+      );
     } else if (user) {
       this.logger.log(`Socket ${client.id} disconnected: user=${user.sub}`);
     } else {
@@ -48,7 +57,9 @@ export class DisconnectionHandler {
         await this.presence.setOffline(driverId);
         this.logger.log(`Grace period expired for driver ${driverId}, marked offline`);
       } catch (err) {
-        this.logger.error(`Failed to set driver ${driverId} offline after grace period: ${(err as Error).message}`);
+        this.logger.error(
+          `Failed to set driver ${driverId} offline after grace period: ${(err as Error).message}`,
+        );
       }
     }, GRACE_PERIOD_MS);
     timer.unref();

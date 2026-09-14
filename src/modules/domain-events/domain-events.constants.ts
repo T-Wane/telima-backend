@@ -8,6 +8,10 @@ export const DomainEvents = {
   TripRated: 'trip.rated',
   DriverAssigned: 'dispatch.driver_assigned',
   DispatchFailed: 'dispatch.failed',
+  // Emis a chaque fois qu'un chauffeur est sollicite pour une course (dispatch) :
+  // declenche l'envoi d'une notification push (le chauffeur peut avoir l'appli
+  // fermee / l'ecran eteint).
+  DriverNotified: 'dispatch.driver_notified',
   PaymentSucceeded: 'payment.succeeded',
   CommissionPaid: 'commission.paid',
   DriverOnline: 'driver.online',
