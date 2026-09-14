@@ -24,7 +24,7 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'OTP envoye avec succes' })
   @ApiResponse({ status: 400, description: 'Cooldown ou erreur SMS' })
   requestOtp(@Body() dto: RequestOtpDto) {
-    return this.authService.requestOtp(dto.phone);
+    return this.authService.requestOtp(dto.phone, dto.app ?? 'client');
   }
 
   @Public()
@@ -36,7 +36,7 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'OTP invalide ou expire' })
   @ApiResponse({ status: 403, description: 'Compte desactive ou trop de tentatives' })
   verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.authService.verifyOtp(dto.phone, dto.code);
+    return this.authService.verifyOtp(dto.phone, dto.code, dto.app ?? 'client');
   }
 
   @Public()

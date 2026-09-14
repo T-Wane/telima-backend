@@ -9,9 +9,10 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { SmsModule } from '../sms/sms.module';
+import { OtpModule } from '../otp/otp.module';
 
 @Module({
-  imports: [ConfigModule, PassportModule, JwtModule.register({}), SmsModule],
+  imports: [ConfigModule, PassportModule, JwtModule.register({}), SmsModule, OtpModule],
   controllers: [AuthController],
   providers: [
     AuthService,

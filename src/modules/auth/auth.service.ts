@@ -11,6 +11,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SMS_PROVIDER, SmsProvider } from '../sms/sms-provider.interface';
+import { JulakaiApp, JulakaiOtpService } from '../otp/julakai-otp.service';
 import { normalizePhone } from './utils/phone.util';
 import { generateOtpCode, hashToken } from './utils/crypto.util';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
@@ -28,10 +29,30 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly jwtService: JwtService,
     @Inject(SMS_PROVIDER) private readonly smsProvider: SmsProvider,
+    private readonly julakaiOtp: JulakaiOtpService,
   ) {}
 
-  async requestOtp(rawPhone: string) {
+  // JulakAI seulement si active globalement ET si la cle de CETTE app (client/driver)
+  // est configuree. Tant que la cle driver n'est pas fournie par Tidiane, les
+  // requetes chauffeur retombent automatiquement sur le provider legacy (mock/
+  // sendtext) sans rien casser -> coller sa cle dans .env suffira a activer.
+  private useJulakai(app: JulakaiApp): boolean {
+    return (
+      this.config.get<string>('OTP_PROVIDER', 'legacy') === 'julakai' &&
+      this.julakaiOtp.isConfigured(app)
+    );
+  }
+
+  async requestOtp(rawPhone: string, app: JulakaiApp = 'client') {
     const phone = normalizePhone(rawPhone);
+
+    // JulakAI gere tout le cycle OTP de son cote (generation, cooldown, expiration) :
+    // on ne stocke rien localement, /v1/otp/send fait foi.
+    if (this.useJulakai(app)) {
+      const result = await this.julakaiOtp.sendOtp(phone, app);
+      return { phone, expiresInSeconds: result.expiresInSeconds };
+    }
+
     const otpLength = this.config.get<number>('OTP_LENGTH', 4);
     const expiresMinutes = this.config.get<number>('OTP_EXPIRES_MINUTES', 5);
     const resendCooldownSeconds = this.config.get<number>('OTP_RESEND_COOLDOWN_SECONDS', 60);
@@ -97,8 +118,19 @@ export class AuthService {
     };
   }
 
-  async verifyOtp(rawPhone: string, code: string) {
+  async verifyOtp(rawPhone: string, code: string, app: JulakaiApp = 'client') {
     const phone = normalizePhone(rawPhone);
+
+    // JulakAI fait foi sur la validite du code (cooldown/tentatives/expiration geres
+    // de son cote) : pas de lookup local, on delegue directement a /v1/otp/verify.
+    if (this.useJulakai(app)) {
+      const result = await this.julakaiOtp.verifyOtp(phone, code, app);
+      if (!result.verified) {
+        throw new UnauthorizedException('Code OTP invalide ou expire');
+      }
+      return this.completeLogin(phone);
+    }
+
     const maxAttempts = this.config.get<number>('OTP_MAX_ATTEMPTS', 3);
     const lockMinutes = this.config.get<number>('OTP_LOCK_MINUTES', 30);
 
@@ -148,6 +180,12 @@ export class AuthService {
       data: { consumedAt: new Date() },
     });
 
+    return this.completeLogin(phone);
+  }
+
+  // Recherche/creation utilisateur + emission des tokens JWT : partage entre le
+  // flux OTP local (legacy) et le flux JulakAI, une fois le code verifie valide.
+  private async completeLogin(phone: string) {
     let user = await this.prisma.user.findUnique({ where: { phone } });
     let isNewUser = false;
 
