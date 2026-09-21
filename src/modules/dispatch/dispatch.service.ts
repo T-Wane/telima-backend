@@ -44,11 +44,22 @@ export class DispatchService {
 
     const config = await this.serviceConfig.getDispatchConfig(serviceType);
 
+    // Chauffeurs deja sollicites pour CETTE course et qui ont refuse/expire :
+    // a exclure du retry, sinon avec peu de chauffeurs a proximite le meme
+    // chauffeur qui vient de refuser se retrouve reselectionne (cf. audit
+    // 2026-09-18 : "il refuse et a la fin il recoit quand meme la demande").
+    const previousAttempts = await this.prisma.dispatchAttempt.findMany({
+      where: { tripId, status: { in: ['driver_declined', 'timed_out'] } },
+      select: { driverId: true },
+    });
+    const excludeDriverIds = previousAttempts.map((a) => a.driverId);
+
     const candidates = await this.geolocation.findNearbyDrivers(
       pickup,
       config.dispatchRadiusMeters,
       serviceType,
       vehicleTypeId,
+      excludeDriverIds,
     );
 
     if (candidates.length === 0) {
@@ -102,11 +113,12 @@ export class DispatchService {
         continue;
       }
 
-      // upsert (pas create) : si ce chauffeur a deja une tentative pour cette
-      // course (ex. il vient de refuser/timeout et se retrouve reselectionne
-      // au retry, seul candidat disponible), un create() plante sur la
-      // contrainte unique (trip_id, driver_id) -> 500 silencieux qui casse
-      // tout le cycle de retry sans jamais notifier personne d'autre.
+      // upsert (pas create) : `candidates` exclut deja les chauffeurs
+      // declined/timed_out pour cette course (cf. excludeDriverIds
+      // ci-dessus), mais upsert reste un garde-fou defensif contre toute
+      // reselection residuelle (course invalidee entre-temps, etc.) : un
+      // create() planterait sur la contrainte unique (trip_id, driver_id)
+      // -> 500 silencieux qui casse tout le cycle de retry.
       await this.prisma.dispatchAttempt.upsert({
         where: { tripId_driverId: { tripId, driverId: driver.driverId } },
         create: {

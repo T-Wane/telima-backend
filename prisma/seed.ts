@@ -33,8 +33,15 @@ async function main() {
       pricePerMin: 50,
       commissionPercentage: 20,
     },
+    // "Moto"/"Tricycle" (delivery) : memes noms que leurs equivalents ride,
+    // seul le serviceType differencie (voir @@unique([name, serviceType])).
+    // Un chauffeur "Moto" est ainsi eligible aux courses ET aux livraisons
+    // sans double inscription (cf. demande produit + migration 2026-09-19 :
+    // anciennement nommes "Moto Livraison"/"Tricycle Livraison", renommes en
+    // prod - ne PAS remettre ces anciens noms ici, ce script tournant a
+    // chaque redemarrage du conteneur, il recreerait les doublons renommes).
     {
-      name: 'Moto Livraison',
+      name: 'Moto',
       serviceType: ServiceType.delivery,
       capacity: 10,
       baseFare: 250,
@@ -43,7 +50,7 @@ async function main() {
       commissionPercentage: 15,
     },
     {
-      name: 'Tricycle Livraison',
+      name: 'Tricycle',
       serviceType: ServiceType.delivery,
       capacity: 50,
       baseFare: 400,

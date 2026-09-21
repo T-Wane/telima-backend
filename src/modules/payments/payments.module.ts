@@ -5,6 +5,7 @@ import { MockPaymentProvider } from './providers/mock-payment.provider';
 import { OrangeMoneyProvider } from './providers/orange-money.provider';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
+import { PaymentPagesController } from './payment-pages.controller';
 import { CommissionsModule } from '../commissions/commissions.module';
 import { EventsModule } from '../events/events.module';
 
@@ -12,7 +13,7 @@ import { EventsModule } from '../events/events.module';
 // definir PAYMENT_PROVIDER=orange_money dans .env (+ credentials API).
 @Module({
   imports: [ConfigModule, CommissionsModule, EventsModule],
-  controllers: [PaymentsController],
+  controllers: [PaymentsController, PaymentPagesController],
   providers: [
     PaymentsService,
     MockPaymentProvider,

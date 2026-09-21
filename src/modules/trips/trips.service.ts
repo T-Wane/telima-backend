@@ -187,8 +187,14 @@ export class TripsService {
           throw new ForbiddenException('Seul le client peut annuler');
         updateData.cancelledAt = new Date();
         updateData.cancelReason = dto.cancelReason;
-        await this.dispatchService.releaseLocksForTrip(tripId);
+        // IMPORTANT : notifier AVANT de liberer les verrous. releaseLocksForTrip
+        // passe les dispatchAttempt 'driver_notified' -> 'timed_out', et la
+        // notification cherche justement les 'driver_notified' pour savoir qui
+        // prevenir : dans l'autre ordre, la recherche ne trouvait plus jamais
+        // personne (0 resultat) et le chauffeur continuait de sonner
+        // indefiniment sur une demande deja annulee (audit 2026-09-21).
         await this._notifyDispatchedDriversOfCancellation(tripId, trip.serviceType, dto.cancelReason ?? 'client');
+        await this.dispatchService.releaseLocksForTrip(tripId);
         break;
 
       case TripStatus.cancelled_by_driver:
@@ -204,8 +210,9 @@ export class TripsService {
       case TripStatus.cancelled_auto:
         updateData.cancelledAt = new Date();
         updateData.cancelReason = dto.cancelReason ?? 'auto';
-        await this.dispatchService.releaseLocksForTrip(tripId);
+        // Meme ordre corrige que cancelled_by_client ci-dessus.
         await this._notifyDispatchedDriversOfCancellation(tripId, trip.serviceType, dto.cancelReason ?? 'auto');
+        await this.dispatchService.releaseLocksForTrip(tripId);
         break;
     }
 
