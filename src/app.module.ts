@@ -27,6 +27,7 @@ import { ChargingStationsModule } from './modules/charging-stations/charging-sta
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { LegalModule } from './modules/legal/legal.module';
 import { SentryGlobalFilter } from '@sentry/nestjs/setup';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -86,6 +87,7 @@ import { IdempotencyInterceptor } from './common/interceptors/idempotency.interc
     TrackingModule,
     PaymentsModule,
     AdminModule,
+    LegalModule,
     AuthModule,
     UsersModule,
     DriversModule,
