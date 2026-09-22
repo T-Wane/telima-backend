@@ -43,8 +43,21 @@ export class AuthService {
     );
   }
 
+  // Numero + code fixes reserves aux revues d'app stores (Google Play, App
+  // Store) : l'examinateur ne peut pas recevoir de vrai SMS sur un numero
+  // malien. Ce compte est cree comme un utilisateur normal au premier login
+  // (cf. completeLogin), sans aucun privilege particulier.
+  private isReviewTestPhone(phone: string): boolean {
+    const reviewPhone = this.config.get<string>('REVIEW_TEST_PHONE');
+    return !!reviewPhone && phone === normalizePhone(reviewPhone);
+  }
+
   async requestOtp(rawPhone: string, app: JulakaiApp = 'client') {
     const phone = normalizePhone(rawPhone);
+
+    if (this.isReviewTestPhone(phone)) {
+      return { phone, expiresInSeconds: 600 };
+    }
 
     // JulakAI gere tout le cycle OTP de son cote (generation, cooldown, expiration) :
     // on ne stocke rien localement, /v1/otp/send fait foi.
@@ -120,6 +133,14 @@ export class AuthService {
 
   async verifyOtp(rawPhone: string, code: string, app: JulakaiApp = 'client') {
     const phone = normalizePhone(rawPhone);
+
+    if (this.isReviewTestPhone(phone)) {
+      const expectedCode = this.config.get<string>('REVIEW_TEST_OTP_CODE', '000000');
+      if (code !== expectedCode) {
+        throw new UnauthorizedException('Code OTP invalide ou expire');
+      }
+      return this.completeLogin(phone);
+    }
 
     // JulakAI fait foi sur la validite du code (cooldown/tentatives/expiration geres
     // de son cote) : pas de lookup local, on delegue directement a /v1/otp/verify.
