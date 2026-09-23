@@ -22,6 +22,12 @@ export class LegalPagesController {
   terms(@Res() res: Response): void {
     res.type('html').send(renderLegalPage('Conditions generales d\'utilisation', cguSections));
   }
+
+  @Public()
+  @Get('account-deletion')
+  accountDeletion(@Res() res: Response): void {
+    res.type('html').send(renderLegalPage('Suppression de compte', accountDeletionSections));
+  }
 }
 
 interface Section {
@@ -92,6 +98,21 @@ const privacySections: Section[] = [
   {
     title: '7. Cookies et traceurs',
     body: "L'application Telima n'utilise pas de cookies. Des identifiants techniques sont utilises pour le fonctionnement de l'application (session, notifications push).",
+  },
+];
+
+const accountDeletionSections: Section[] = [
+  {
+    title: 'Comment demander la suppression de votre compte Telima',
+    body: "Pour demander la suppression de votre compte Telima et des donnees associees, envoyez un e-mail a support@telima.ml depuis l'adresse associee a votre compte (ou en indiquant le numero de telephone utilise pour vous inscrire) avec pour objet « Suppression de compte ». Votre demande sera traitee sous 30 jours maximum.",
+  },
+  {
+    title: 'Donnees supprimees',
+    body: "Votre profil (nom, numero de telephone, adresse e-mail), vos adresses enregistrees, vos preferences et votre historique de conversations sont definitivement supprimes.",
+  },
+  {
+    title: 'Donnees conservees',
+    body: "Pour respecter nos obligations legales (comptabilite, lutte contre la fraude, litiges), l'historique de vos courses et livraisons (dates, montants, trajets) ainsi que les transactions de paiement peuvent etre conserves jusqu'a 3 ans apres la suppression du compte, conformement a notre politique de confidentialite.",
   },
 ];
 
