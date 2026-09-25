@@ -47,9 +47,16 @@ export class AuthService {
   // Store) : l'examinateur ne peut pas recevoir de vrai SMS sur un numero
   // malien. Ce compte est cree comme un utilisateur normal au premier login
   // (cf. completeLogin), sans aucun privilege particulier.
+  // REVIEW_TEST_PHONE accepte une liste separee par des virgules (compte client
+  // ET compte chauffeur, une appli Play Store chacune).
   private isReviewTestPhone(phone: string): boolean {
-    const reviewPhone = this.config.get<string>('REVIEW_TEST_PHONE');
-    return !!reviewPhone && phone === normalizePhone(reviewPhone);
+    const raw = this.config.get<string>('REVIEW_TEST_PHONE');
+    if (!raw) return false;
+    return raw
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .some((p) => phone === normalizePhone(p));
   }
 
   async requestOtp(rawPhone: string, app: JulakaiApp = 'client') {
