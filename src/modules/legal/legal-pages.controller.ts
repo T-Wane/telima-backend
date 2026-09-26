@@ -104,15 +104,19 @@ const privacySections: Section[] = [
 const accountDeletionSections: Section[] = [
   {
     title: 'Comment demander la suppression de votre compte Telima',
-    body: "Pour demander la suppression de votre compte Telima et des donnees associees, envoyez un e-mail a support@telima.ml depuis l'adresse associee a votre compte (ou en indiquant le numero de telephone utilise pour vous inscrire) avec pour objet « Suppression de compte ». Votre demande sera traitee sous 30 jours maximum.",
+    body: "Directement dans l'application : Telima (client) > Menu > Parametres > « Supprimer mon compte » ; Telima Pro (chauffeur) > Menu > « Supprimer mon compte ». La suppression est immediate apres confirmation. Vous pouvez aussi envoyer un e-mail a support@telima.ml depuis l'adresse associee a votre compte (ou en indiquant le numero de telephone utilise pour vous inscrire) avec pour objet « Suppression de compte » : votre demande sera traitee sous 30 jours maximum.",
+  },
+  {
+    title: 'Conditions',
+    body: "Le compte ne peut pas etre supprime tant qu'une course est en cours. Un chauffeur doit avoir regle ses commissions en attente, ou contacter le support.",
   },
   {
     title: 'Donnees supprimees',
-    body: "Votre profil (nom, numero de telephone, adresse e-mail), vos adresses enregistrees, vos preferences et votre historique de conversations sont definitivement supprimes.",
+    body: "Votre profil (nom, numero de telephone, adresse e-mail), vos adresses enregistrees, vos preferences, le contenu de vos messages et messages vocaux, et vos jetons de connexion et de notification sont definitivement supprimes. Pour les chauffeurs : la photo et les documents (permis de conduire, carte d'identite, carte grise) sont egalement supprimes et le compte est desactive. Votre numero de telephone est libere.",
   },
   {
     title: 'Donnees conservees',
-    body: "Pour respecter nos obligations legales (comptabilite, lutte contre la fraude, litiges), l'historique de vos courses et livraisons (dates, montants, trajets) ainsi que les transactions de paiement peuvent etre conserves jusqu'a 3 ans apres la suppression du compte, conformement a notre politique de confidentialite.",
+    body: "Pour respecter nos obligations legales (comptabilite, lutte contre la fraude, litiges), l'historique anonymise de vos courses et livraisons (dates, montants, trajets), les transactions de paiement et, pour les chauffeurs, les gains, les commissions et les informations du vehicule associees a ces courses peuvent etre conserves jusqu'a 3 ans apres la suppression du compte, conformement a notre politique de confidentialite.",
   },
 ];
 

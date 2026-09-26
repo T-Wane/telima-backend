@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -21,5 +21,13 @@ export class UsersController {
   @ApiOperation({ summary: 'Mettre a jour son profil' })
   updateMe(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateUserDto) {
     return this.usersService.update(user.id, dto);
+  }
+
+  @Delete('me')
+  @ApiOperation({
+    summary: 'Supprimer son compte (anonymisation des donnees personnelles)',
+  })
+  deleteMe(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.deleteAccount(user.id);
   }
 }
