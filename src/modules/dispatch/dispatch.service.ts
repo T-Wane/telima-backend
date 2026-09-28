@@ -204,6 +204,14 @@ export class DispatchService {
 
     await this.redis.del(DispatchLockKey(driverId));
     await this.redis.del(DispatchTimeoutJobKey(tripId, driverId));
+    // Le chauffeur a un minuteur local (50s) plus long que ce delai serveur
+    // (dispatch_timeout_ms, 25s) pour laisser une marge au reveil FCM. Sans ce
+    // push, son telephone continue de sonner ~25s de plus apres que le serveur
+    // a deja abandonne cette tentative (constate en test le 2026-09-28).
+    this.broadcast.emitToDriver(driverId, WsEvents.RideCancelled, {
+      tripId,
+      reason: 'timeout',
+    });
     await this.checkAndRetryDispatch(tripId);
   }
 
@@ -289,6 +297,14 @@ export class DispatchService {
       await this.prisma.dispatchAttempt.updateMany({
         where: { tripId, driverId: attempt.driverId, status: 'driver_notified' },
         data: { status: 'driver_declined', respondedAt: new Date() },
+      });
+      // Sans ce push, les autres chauffeurs sollicites en meme temps continuent
+      // de sonner jusqu'a leur minuteur local (50s), meme si la course est
+      // deja prise (constate en test le 2026-09-28 : "2eme telephone continue
+      // de sonner").
+      this.broadcast.emitToDriver(attempt.driverId, WsEvents.RideCancelled, {
+        tripId,
+        reason: 'assigned_elsewhere',
       });
     }
 
