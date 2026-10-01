@@ -97,7 +97,9 @@ export class GoogleDistanceProvider implements DistanceProvider {
 
     const data = await response.json();
     if (data.status !== 'OK' || !data.rows?.[0]?.elements?.[0]) {
-      throw new Error(`Google API status: ${data.status}`);
+      throw new Error(
+        `Google API status: ${data.status}${data.error_message ? ` - ${data.error_message}` : ''}`,
+      );
     }
 
     const element = data.rows[0].elements[0];
