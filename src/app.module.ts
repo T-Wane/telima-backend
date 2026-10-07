@@ -54,6 +54,11 @@ import { IdempotencyInterceptor } from './common/interceptors/idempotency.interc
               ? { target: 'pino-pretty', options: { colorize: true } }
               : undefined,
           autoLogging: true,
+          // Les jetons de connexion ne doivent jamais apparaitre dans les logs.
+          redact: {
+            paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
+            censor: '[masque]',
+          },
         },
       }),
     }),
