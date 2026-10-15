@@ -42,6 +42,11 @@ export class CreateVehicleTypeDto {
   @Min(0)
   commissionPercentage: number;
 
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  isElectric?: boolean;
+
   @ApiPropertyOptional({ example: true, default: true })
   @IsOptional()
   @IsBoolean()

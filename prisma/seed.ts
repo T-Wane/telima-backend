@@ -60,7 +60,15 @@ async function main() {
     },
   ];
 
-  for (const vt of vehicleTypes) {
+  // Variantes electriques de chaque type (memes tarifs de depart ; l'admin les
+  // modifie ensuite dans le dashboard, le seed ne les ecrase jamais).
+  const electricTypes = vehicleTypes.map((vt) => ({
+    ...vt,
+    name: `${vt.name} électrique`,
+    isElectric: true,
+  }));
+
+  for (const vt of [...vehicleTypes, ...electricTypes]) {
     await prisma.vehicleType.upsert({
       where: { name_serviceType: { name: vt.name, serviceType: vt.serviceType } },
       update: {},
