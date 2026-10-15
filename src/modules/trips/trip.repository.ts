@@ -18,6 +18,7 @@ export interface CreateTripData {
   distanceMeters: number;
   durationSeconds: number;
   paymentMethod: string;
+  electricOnly?: boolean;
 }
 
 export interface CreateDeliveryDetailsData {
@@ -61,6 +62,7 @@ const TRIP_INCLUDE = {
           brand: true,
           model: true,
           plateNumber: true,
+          energy: true,
           vehicleType: { select: { id: true, name: true, serviceType: true } },
         },
       },
@@ -89,7 +91,7 @@ export class TripRepository {
         id, client_id, vehicle_type_id, service_type, status,
         pickup_location, pickup_address, dropoff_location, dropoff_address,
         estimated_price, distance_meters, duration_seconds, payment_method,
-        created_at, updated_at
+        electric_only, created_at, updated_at
       ) VALUES (
         gen_random_uuid(), ${data.clientId}, ${data.vehicleTypeId},
         ${data.serviceType}::"ServiceType", 'pending',
@@ -99,6 +101,7 @@ export class TripRepository {
         ${data.dropoffAddress},
         ${data.estimatedPrice}, ${data.distanceMeters}, ${data.durationSeconds},
         ${data.paymentMethod}::"PaymentMethod",
+        ${data.electricOnly ?? false},
         NOW(), NOW()
       )
       RETURNING id

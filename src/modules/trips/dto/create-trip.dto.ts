@@ -25,6 +25,11 @@ export class CreateTripDto {
   @IsString()
   vehicleTypeId: string;
 
+  @ApiPropertyOptional({ description: 'Exiger un vehicule electrique', default: false })
+  @IsOptional()
+  @IsBoolean()
+  electricOnly?: boolean;
+
   @ApiProperty({ description: 'Point de départ' })
   @IsObject()
   pickup: GeoPointDto;

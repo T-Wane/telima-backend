@@ -54,12 +54,18 @@ export class DispatchService {
     });
     const excludeDriverIds = previousAttempts.map((a) => a.driverId);
 
+    const tripFlags = await this.prisma.trip.findUnique({
+      where: { id: tripId },
+      select: { electricOnly: true },
+    });
+
     const candidates = await this.geolocation.findNearbyDrivers(
       pickup,
       config.dispatchRadiusMeters,
       serviceType,
       vehicleTypeId,
       excludeDriverIds,
+      tripFlags?.electricOnly ?? false,
     );
 
     if (candidates.length === 0) {

@@ -69,6 +69,7 @@ export class TripsService {
       distanceMeters: priceResult.distanceMeters,
       durationSeconds: priceResult.durationSeconds,
       paymentMethod: 'cash',
+      electricOnly: dto.electricOnly ?? false,
     });
 
     // Création des détails spécifiques au service
@@ -282,6 +283,7 @@ export class TripsService {
         vehiclePlate: vehicle?.plateNumber,
         vehicleModel: vehicle ? `${vehicle.brand} ${vehicle.model}` : undefined,
         vehicleType: vehicle?.vehicleType?.name,
+        vehicleEnergy: vehicle?.energy,
         etaMinutes,
         driverLat,
         driverLng,
@@ -392,6 +394,7 @@ export class TripsService {
         rating: trip.driver?.rating ? Number(trip.driver.rating) : undefined,
         vehiclePlate: trip.driver?.vehicle?.plateNumber,
         vehicleType: trip.driver?.vehicle?.vehicleType?.name,
+        vehicleEnergy: trip.driver?.vehicle?.energy,
         recipientName: trip.deliveryDetails?.recipientName,
         recipientPhone: trip.deliveryDetails?.recipientPhone,
         packageType: trip.deliveryDetails?.parcelDescription,

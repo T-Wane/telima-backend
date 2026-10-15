@@ -297,6 +297,10 @@ model Trip {
   distanceMeters  Int? @map("distance_meters")
   durationSeconds Int? @map("duration_seconds")
 
+  // Le client exige un vehicule electrique : seuls les chauffeurs dont
+  // vehicles.energy est electrique sont sollicites au dispatch.
+  electricOnly Boolean @default(false) @map("electric_only")
+
   // Cycle de vie
   acceptedAt      DateTime? @map("accepted_at")
   driverArrivedAt DateTime? @map("driver_arrived_at")

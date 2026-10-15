@@ -34,6 +34,7 @@ export class GeolocationService {
     serviceType?: string,
     vehicleTypeId?: string,
     excludeDriverIds: string[] = [],
+    electricOnly = false,
   ): Promise<NearbyDriver[]> {
     const results = await this.prisma.$queryRaw<NearbyDriver[]>(Prisma.sql`
       SELECT
@@ -84,6 +85,9 @@ export class GeolocationService {
               )`
             : Prisma.empty
         }
+        -- Course reservee aux vehicules electriques (choix du client) : l'energie
+        -- est saisie a l'inscription ("Electrique" / "Essence" / "Diesel").
+        ${electricOnly ? Prisma.sql`AND v.energy ~* '^(e|é)lectri'` : Prisma.empty}
         -- Exclut les chauffeurs ayant deja refuse/laisse expirer CETTE course :
         -- sans ce filtre, un retry avec un seul chauffeur a proximite le
         -- re-notifiait indefiniment pour la course qu'il vient de refuser
