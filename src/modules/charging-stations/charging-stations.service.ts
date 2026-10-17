@@ -16,7 +16,7 @@ export class ChargingStationsService {
         where: {
           ...where,
           lat: { gte: lat - latDelta, lte: lat + latDelta },
-          lng: { gte: lng - lngDelta, lte: lng + latDelta },
+          lng: { gte: lng - lngDelta, lte: lng + lngDelta },
         },
         orderBy: { createdAt: 'asc' },
       });
