@@ -1,0 +1,14 @@
+# A copier dans /opt/edge/sites/vtc.caddy (voir le guide, etape 6), puis :
+#   docker exec edge-caddy-1 caddy validate --config /etc/caddy/Caddyfile
+#   docker exec edge-caddy-1 caddy reload --config /etc/caddy/Caddyfile
+# Ne jamais recharger si la validation echoue.
+
+api.telimamobility.com {
+    import securite
+    reverse_proxy vtc-api:3000
+}
+
+dashboard.telimamobility.com {
+    import securite
+    reverse_proxy vtc-web:80
+}
