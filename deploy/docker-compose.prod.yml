@@ -26,7 +26,7 @@ services:
       - uploads_data:/app/uploads
       # Compte de service Firebase (notifications push) : fichier hors Git, a placer dans /opt/vtc,
       # puis FCM_SERVICE_ACCOUNT_PATH=/app/fcm-service-account.json dans .env.prod.
-      # - ../fcm-service-account.json:/app/fcm-service-account.json:ro
+      - ../fcm-service-account.json:/app/fcm-service-account.json:ro
     networks:
       interne:
       edge:
