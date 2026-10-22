@@ -9,3 +9,10 @@ docs
 *.md
 .eslintrc.js
 .prettierrc
+.env*
+*.dump
+*.tar.gz
+*.tar
+dashboard-dist
+deploy
+fcm-service-account.json
