@@ -121,7 +121,7 @@ export class DriversController {
   }
 
   @Roles(UserRole.admin)
-  @RequirePermission('drivers', 'finances', 'dashboard')
+  @RequirePermission('drivers')
   @Get()
   @ApiOperation({ summary: 'Lister tous les chauffeurs (admin)' })
   findAll(@Query('status') status?: string) {
@@ -129,7 +129,7 @@ export class DriversController {
   }
 
   @Roles(UserRole.admin)
-  @RequirePermission('drivers', 'finances', 'dashboard')
+  @RequirePermission('drivers')
   @Get(':id')
   @ApiOperation({ summary: 'Recuperer un chauffeur par ID (admin)' })
   findOne(@Param('id') id: string) {
