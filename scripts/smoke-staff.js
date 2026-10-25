@@ -1,6 +1,6 @@
 /* Test de bout en bout des comptes du dashboard et de leurs droits.
  * A lancer DANS le conteneur api, sur une base qui n'est pas en production :
- *   docker cp scripts/smoke-staff.js vtc-api-1:/tmp/ && docker exec vtc-api-1 node /tmp/smoke-staff.js
+ *   docker cp scripts/smoke-staff.js vtc-api-1:/app/ && docker exec -w /app vtc-api-1 node smoke-staff.js
  * Il cree deux comptes temporaires (smoke-*) et les supprime a la fin.
  */
 const { PrismaClient } = require('@prisma/client');
