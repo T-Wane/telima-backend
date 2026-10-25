@@ -6,12 +6,14 @@ import { DynamicPricingService } from '../pricing/dynamic-pricing.service';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateZoneDto, UpdateZoneDto } from './dto/zone.dto';
 import { CreatePricingRuleDto, UpdatePricingRuleDto } from './dto/pricing-rule.dto';
+import { RequirePermission } from '../../common/decorators/permissions.decorator';
 
 // CRUD admin des zones de service et regles de tarification dynamique (Sprint 5).
 // Les mutations invalident le cache du DynamicPricingService pour prise en compte immediate.
 @ApiTags('Admin — Zones & Pricing')
 @ApiBearerAuth()
 @Roles(UserRole.admin)
+@RequirePermission('settings')
 @Controller('admin')
 export class AdminPricingController {
   constructor(

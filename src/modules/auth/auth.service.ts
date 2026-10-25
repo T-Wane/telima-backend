@@ -247,7 +247,7 @@ export class AuthService {
   // Reserve au role admin ; un compte client/chauffeur ne peut pas se connecter ici.
   async adminLogin(email: string, password: string) {
     const user = await this.prisma.user.findFirst({
-      where: { email, role: UserRole.admin },
+      where: { email: { equals: email.trim(), mode: 'insensitive' }, role: UserRole.admin },
     });
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Identifiants invalides');
@@ -269,6 +269,7 @@ export class AuthService {
         role: user.role,
         firstName: user.firstName,
         lastName: user.lastName,
+        permissions: user.permissions,
       },
     };
   }

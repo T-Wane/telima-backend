@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { TripStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/permissions.decorator';
 
 // Endpoints admin pour le dashboard (Sprint 6) : statistiques globales,
 // financieres, et rapport de commissions. Acces restreint au role admin.
@@ -13,6 +14,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 export class AdminStatsController {
   constructor(private readonly prisma: PrismaService) {}
 
+  @RequirePermission('dashboard', 'finances')
   @Get('stats')
   @ApiOperation({ summary: 'Statistiques globales (utilisateurs, chauffeurs, courses, revenus)' })
   async getStats() {
@@ -48,6 +50,7 @@ export class AdminStatsController {
     };
   }
 
+  @RequirePermission('finances', 'dashboard')
   @Get('finances')
   @ApiOperation({ summary: 'Statistiques financieres (revenus, commissions, paiements)' })
   async getFinances() {
@@ -118,6 +121,7 @@ export class AdminStatsController {
     };
   }
 
+  @RequirePermission('finances')
   @Get('reports/commissions')
   @ApiOperation({ summary: 'Rapport des commissions par chauffeur' })
   @ApiQuery({ name: 'page', required: false })

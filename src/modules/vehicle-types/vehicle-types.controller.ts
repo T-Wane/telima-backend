@@ -6,6 +6,7 @@ import { CreateVehicleTypeDto } from './dto/create-vehicle-type.dto';
 import { UpdateVehicleTypeDto } from './dto/update-vehicle-type.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { RequirePermission } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('Vehicle Types')
 @ApiBearerAuth()
@@ -28,6 +29,7 @@ export class VehicleTypesController {
   }
 
   @Roles(UserRole.admin)
+  @RequirePermission('settings')
   @Post()
   @ApiOperation({ summary: 'Creer un type de vehicule (admin)' })
   @ApiResponse({ status: 201, description: 'Type de vehicule cree' })
@@ -36,6 +38,7 @@ export class VehicleTypesController {
   }
 
   @Roles(UserRole.admin)
+  @RequirePermission('settings')
   @Patch(':id')
   @ApiOperation({ summary: 'Modifier un type de vehicule (admin)' })
   update(@Param('id') id: string, @Body() dto: UpdateVehicleTypeDto) {
@@ -43,6 +46,7 @@ export class VehicleTypesController {
   }
 
   @Roles(UserRole.admin)
+  @RequirePermission('settings')
   @Delete(':id')
   @ApiOperation({ summary: 'Desactiver un type de vehicule (admin)' })
   deactivate(@Param('id') id: string) {

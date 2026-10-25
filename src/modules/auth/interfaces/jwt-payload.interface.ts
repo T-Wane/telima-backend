@@ -10,4 +10,6 @@ export interface AuthenticatedUser {
   id: string;
   phone: string;
   role: UserRole;
+  // Renseigne par RolesGuard pour les comptes du dashboard (relu en base a chaque requete).
+  permissions?: string[];
 }

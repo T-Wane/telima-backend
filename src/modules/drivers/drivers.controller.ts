@@ -28,6 +28,7 @@ import { UpdateOnlineStatusDto } from './dto/update-online-status.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
+import { RequirePermission } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('Drivers')
 @ApiBearerAuth()
@@ -120,6 +121,7 @@ export class DriversController {
   }
 
   @Roles(UserRole.admin)
+  @RequirePermission('drivers', 'finances', 'dashboard')
   @Get()
   @ApiOperation({ summary: 'Lister tous les chauffeurs (admin)' })
   findAll(@Query('status') status?: string) {
@@ -127,6 +129,7 @@ export class DriversController {
   }
 
   @Roles(UserRole.admin)
+  @RequirePermission('drivers', 'finances', 'dashboard')
   @Get(':id')
   @ApiOperation({ summary: 'Recuperer un chauffeur par ID (admin)' })
   findOne(@Param('id') id: string) {
@@ -134,6 +137,7 @@ export class DriversController {
   }
 
   @Roles(UserRole.admin)
+  @RequirePermission('drivers')
   @Patch(':id/validate')
   @ApiOperation({ summary: 'Valider un chauffeur (admin)' })
   validate(@Param('id') id: string) {
@@ -141,6 +145,7 @@ export class DriversController {
   }
 
   @Roles(UserRole.admin)
+  @RequirePermission('drivers')
   @Patch(':id/suspend')
   @ApiOperation({ summary: 'Suspendre un chauffeur (admin)' })
   suspend(@Param('id') id: string, @Body() dto: SuspendDriverDto) {

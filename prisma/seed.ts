@@ -81,6 +81,7 @@ async function main() {
       lastName: 'Telima',
       email: 'admin@telima.ml',
       passwordHash: adminPasswordHash,
+      permissions: ['*'],
     },
   });
 

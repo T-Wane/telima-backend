@@ -14,6 +14,7 @@ import { UserRole } from '@prisma/client';
 import { ChargingStationsService } from './charging-stations.service';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateStationDto, UpdateStationDto } from './dto/station.dto';
+import { RequirePermission } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('Charging Stations')
 @ApiBearerAuth()
@@ -56,6 +57,7 @@ export class ChargingStationsController {
 
   // CRUD admin (Sprint 6 : dashboard, gestion du parc de stations).
   @Roles(UserRole.admin)
+  @RequirePermission('stations')
   @Post()
   @ApiOperation({ summary: 'Créer une station (admin)' })
   @ApiResponse({ status: 201, description: 'Station créée' })
@@ -64,6 +66,7 @@ export class ChargingStationsController {
   }
 
   @Roles(UserRole.admin)
+  @RequirePermission('stations')
   @Patch(':id')
   @ApiOperation({ summary: 'Modifier une station (admin)' })
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateStationDto) {
@@ -71,6 +74,7 @@ export class ChargingStationsController {
   }
 
   @Roles(UserRole.admin)
+  @RequirePermission('stations')
   @Delete(':id')
   @ApiOperation({ summary: 'Supprimer une station (admin)' })
   remove(@Param('id', ParseUUIDPipe) id: string) {

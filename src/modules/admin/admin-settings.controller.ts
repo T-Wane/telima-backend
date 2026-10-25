@@ -3,10 +3,12 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('Admin — Settings')
 @ApiBearerAuth()
 @Roles(UserRole.admin)
+@RequirePermission('settings')
 @Controller('admin/settings')
 export class AdminSettingsController {
   constructor(private readonly prisma: PrismaService) {}

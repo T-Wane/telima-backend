@@ -1,9 +1,13 @@
-import { Controller, Get, Post, Patch, Body, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Post, Patch, Body, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { TripStatus, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermission } from '../../common/decorators/permissions.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
+import { hasFullAccess } from '../../common/permissions';
 import { IsString, IsEnum, IsOptional, IsBoolean, MinLength } from 'class-validator';
 
 class CreateUserDto {
@@ -62,6 +66,12 @@ class UpdateUserDto {
   password?: string;
 }
 
+// Retire les secrets avant d'envoyer un utilisateur au dashboard.
+function withoutSecrets<T extends { passwordHash?: string | null }>(user: T): Omit<T, 'passwordHash'> {
+  const { passwordHash: _passwordHash, ...safe } = user;
+  return safe;
+}
+
 // Endpoints admin de consultation des utilisateurs et des courses (Sprint 6).
 @ApiTags('Admin — Users & Trips')
 @ApiBearerAuth()
@@ -70,6 +80,7 @@ class UpdateUserDto {
 export class AdminUsersTripsController {
   constructor(private readonly prisma: PrismaService) {}
 
+  @RequirePermission('clients', 'drivers')
   @Get('users')
   @ApiOperation({ summary: 'Lister les utilisateurs (filtre role, recherche, pagination)' })
   @ApiQuery({ name: 'role', required: false, enum: UserRole })
@@ -77,6 +88,7 @@ export class AdminUsersTripsController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   async listUsers(
+    @CurrentUser() actor: AuthenticatedUser,
     @Query('role') role?: UserRole,
     @Query('search') search?: string,
     @Query('page') page?: string,
@@ -86,8 +98,14 @@ export class AdminUsersTripsController {
     const l = limit ? parseInt(limit, 10) : 20;
     const skip = (p - 1) * l;
 
+    // Sans acces total, les comptes du dashboard (employes) restent invisibles.
+    const full = hasFullAccess(actor.permissions);
+    if (!full && role === UserRole.admin) {
+      throw new ForbiddenException('Acces refuse : droits insuffisants');
+    }
     const where = {
       ...(role && { role }),
+      ...(!full && !role && { role: { in: [UserRole.client, UserRole.driver] } }),
       ...(search && {
         OR: [
           { firstName: { contains: search, mode: 'insensitive' as const } },
@@ -120,11 +138,12 @@ export class AdminUsersTripsController {
     ]);
 
     return {
-      data: users,
+      data: users.map(withoutSecrets),
       meta: { total, page: p, limit: l, totalPages: Math.ceil(total / l) },
     };
   }
 
+  @RequirePermission('courses', 'clients', 'dashboard')
   @Get('trips')
   @ApiOperation({ summary: 'Lister les courses (filtres statut/service, pagination)' })
   @ApiQuery({ name: 'status', required: false, enum: TripStatus })
@@ -186,9 +205,10 @@ export class AdminUsersTripsController {
     };
   }
 
+  @RequirePermission('clients', 'drivers')
   @Get('users/:id')
   @ApiOperation({ summary: "Détail d'un utilisateur (admin)" })
-  async getUser(@Param('id', ParseUUIDPipe) id: string) {
+  async getUser(@CurrentUser() actor: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: {
@@ -206,6 +226,9 @@ export class AdminUsersTripsController {
       },
     });
     if (!user) return null;
+    if (user.role === UserRole.admin && !hasFullAccess(actor.permissions)) {
+      throw new ForbiddenException('Acces refuse : droits insuffisants');
+    }
 
     const trips = await this.prisma.trip.findMany({
       where: { clientId: id },
@@ -224,7 +247,7 @@ export class AdminUsersTripsController {
     });
 
     return {
-      ...user,
+      ...withoutSecrets(user),
       trips: trips.map((t) => ({
         id: t.id,
         status: t.status,
@@ -243,6 +266,7 @@ export class AdminUsersTripsController {
     };
   }
 
+  @RequirePermission('finances')
   @Get('payments')
   @ApiOperation({ summary: 'Lister les paiements de commission (admin, pagination)' })
   @ApiQuery({ name: 'page', required: false })
@@ -304,6 +328,7 @@ export class AdminUsersTripsController {
     };
   }
 
+  @RequirePermission('finances')
   @Get('payments/:id')
   @ApiOperation({ summary: 'Détail d\'un paiement de commission (admin)' })
   async getPayment(@Param('id', ParseUUIDPipe) id: string) {
@@ -337,6 +362,7 @@ export class AdminUsersTripsController {
     };
   }
 
+  @RequirePermission('finances', 'drivers')
   @Get('drivers/:id/payments')
   @ApiOperation({ summary: 'Historique des paiements de commission d\'un chauffeur (admin)' })
   @ApiQuery({ name: 'page', required: false })
@@ -375,6 +401,7 @@ export class AdminUsersTripsController {
     };
   }
 
+  @RequirePermission('courses', 'clients', 'dashboard')
   @Get('trips/:id')
   @ApiOperation({ summary: "Détail d'une course (admin)" })
   async getTrip(@Param('id', ParseUUIDPipe) id: string) {
@@ -416,7 +443,7 @@ export class AdminUsersTripsController {
       });
     }
 
-    return user;
+    return withoutSecrets(user);
   }
 
   @Patch('users/:id')
@@ -434,6 +461,6 @@ export class AdminUsersTripsController {
       data.passwordHash = await bcrypt.hash(dto.password, 10);
     }
 
-    return this.prisma.user.update({ where: { id }, data });
+    return withoutSecrets(await this.prisma.user.update({ where: { id }, data }));
   }
 }
